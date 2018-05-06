@@ -289,3 +289,11 @@ function addHTML() {
     springSlider.changed(adjustSpringStiffness);
   }
 }
+
+// chrome fix
+
+function touchStarted() {
+  if (getAudioContext().state !== 'running') {
+    getAudioContext().resume();
+  }
+}
