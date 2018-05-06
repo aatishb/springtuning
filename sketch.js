@@ -10,7 +10,6 @@ let tuning = [1, 25 / 24, 9 / 8, 6 / 5, 5 / 4, 4 / 3, 45 / 32, 3 / 2, 8 / 5, 5 /
 var physics;
 var stiffness = 0.001; // default spring strength
 var particles = []; // particles
-//var springs = []; // springs
 var springsByIntervals = {};
 var springsByNotes = {};
 
@@ -39,22 +38,13 @@ function setup() {
   // Initialize the physics
   physics = new VerletPhysics2D();
   //physics.setWorldBounds(new Rect(0,0,width,height));
-  //physics.addBehavior(new GravityBehavior(new Vec2D(0,0.5)));
 
   tuning = tuning.map(ratioToCents);
-  //console.log(tuning.length);
 
   // create particles
   for (let tune of tuning) {
     particles.push(new VerletParticle2D(centsToPos(tune), 100));
   }
-  
-  /*
-  // add particles
-  for (let particle of particles) {
-    physics.addParticle(particle);
-  }
-  */
 
   for (let interval of intervals) {
     springsByIntervals[interval] = [];
@@ -70,19 +60,11 @@ function setup() {
         tuning[i - j] / scaleFactor,
         stiffness);
 
-      //springs.push(newSpring);
       springsByIntervals[intervals[i - j]].push(newSpring);
-			springsByNotes[notes[i]].push(newSpring);
-			springsByNotes[notes[j]].push(newSpring);
+      springsByNotes[notes[i]].push(newSpring);
+      springsByNotes[notes[j]].push(newSpring);
     }
   }
-
-  /*
-  // add springs
-  for (let spring of springs) {
-    physics.addSpring(spring);
-  }
-  */
 
   particles[0].lock(); // lock c note spatially
 
@@ -102,7 +84,7 @@ function setup() {
 
 function draw() {
 
-  background(0,0,30);
+  background(0, 0, 30);
 
   // draw springs
   stroke(200);
@@ -113,7 +95,7 @@ function draw() {
   // draw particles (notes)
   noStroke();
   for (let particle of physics.particles) {
-		let myHue = map(particles.indexOf(particle),0,particles.length,0,100);
+    let myHue = map(particles.indexOf(particle), 0, particles.length, 0, 100);
     fill(myHue, 100, 100);
     ellipse(particle.x, particle.y, 20);
   }
@@ -123,8 +105,8 @@ function draw() {
   for (let i = 1; i < oscs.length; i++) {
     oscs[i].freq(
       centsToFreq(
-      posToCents(particles[i].x) - posToCents(particles[0].x)
-      ), 
+        posToCents(particles[i].x) - posToCents(particles[0].x)
+      ),
       0.01);
   }
 
@@ -157,60 +139,52 @@ function ratioToCents(ratio) {
 }
 
 
-// UI update function: enables and disables 
+// UI update function: enables and disables
 // oscillators/particles/springs
 // for a given note
 
 function toggleNote() {
-  if (this.checked())
-  {
+  if (this.checked()) {
+
     // play sound
-    // this.osc.start();
-    this.osc.amp(0.5,0.01);
-    
+    this.osc.amp(0.5, 0.01);
+
     // add particle
-    if(!physics.particles.includes(this.particle)){
+    if (!physics.particles.includes(this.particle)) {
       physics.addParticle(this.particle);
     }
-    
-    // add all missing springs that connect this particle
+
+    // add all springs that connect this particle
     // to other particles on screen
-  	for (let mySpring of this.springs)
-    {
-    	if (!physics.springs.includes(mySpring))
-      {
-        if(physics.particles.includes(mySpring.a) && 
-           physics.particles.includes(mySpring.b))
-        {
-		      	physics.addSpring(mySpring);
+    for (let mySpring of this.springs) {
+      if (!physics.springs.includes(mySpring)) {
+        if (physics.particles.includes(mySpring.a) &&
+          physics.particles.includes(mySpring.b)) {
+          physics.addSpring(mySpring);
         }
-    	}
-  	}
-  }
-  else
-  {
+      }
+    }
+  } else {
+
     // stop sound
-    // this.osc.stop();
     this.osc.amp(0, 0.01);
-    
+
     // remove all springs connected to this particle
-  	for (let mySpring of this.springs)
-    {
-    	if (physics.springs.includes(mySpring))
-      {
-      	physics.removeSpring(mySpring);
-    	}
-  	}
-    
-    // and then remove the particle
-    if(physics.particles.includes(this.particle)){
-	    physics.removeParticle(this.particle);
+    for (let mySpring of this.springs) {
+      if (physics.springs.includes(mySpring)) {
+        physics.removeSpring(mySpring);
+      }
+    }
+
+    // remove the particle
+    if (physics.particles.includes(this.particle)) {
+      physics.removeParticle(this.particle);
     }
   }
 
 }
 
-// UI update function: sliders
+// UI update function: set spring stiffness
 
 function adjustSpringStiffness() {
   for (let mySpring of this.springs) {
@@ -218,27 +192,33 @@ function adjustSpringStiffness() {
   }
 }
 
-// UI update function: adds a set of springs
+// UI update function: add a set of springs
 
 function toggleSpring() {
-	// go through springs
+  // go through springs
   for (let mySpring of this.springs) {
-    // if the spring is there, remove it
+    // remove spring if present
     if (physics.springs.includes(mySpring)) {
       physics.removeSpring(mySpring);
-    }
-    else // if the spring isn't there
+    } else
     {
-      // and both its particles are on screen
-      if(physics.particles.includes(mySpring.a) && 
-         physics.particles.includes(mySpring.b) )
-      {
-        	// add the spring
-          physics.addSpring(mySpring);
+      // add spring if absent
+      // but only if both its particles are on screen
+      if (physics.particles.includes(mySpring.a) &&
+        physics.particles.includes(mySpring.b)) {
+        physics.addSpring(mySpring);
       }
     }
   }
 
+}
+
+// UI update function: changes oscillator type (sine, sawtooth, etc)
+
+function changeOscType() {
+  for (let osc of oscs) {
+    osc.setType(sel.value());
+  }
 }
 
 // mouse interaction
@@ -259,12 +239,6 @@ function moveNearbyNodeToMouse() {
   }
 }
 
-function changeOscType() {
-  for (let osc of oscs) {
-    osc.setType(sel.value());
-  }
-}
-
 // adds HTML elements
 
 function addHTML() {
@@ -276,9 +250,9 @@ function addHTML() {
   sel.option('sine');
   sel.changed(changeOscType);
 
-  spacer = createDiv(' ');
+  let spacer = createDiv(' ');
   spacer.style('display', 'block');
-  
+
   for (let i = 0; i < notes.length; i++) {
     spacer = createDiv('');
     spacer.style('display', 'inline-block');
@@ -293,7 +267,7 @@ function addHTML() {
 
     let myCircle = createDiv('');
     myCircle.size(10, 10);
-    let myHue = map(i,0,notes.length,0,100);
+    let myHue = map(i, 0, notes.length, 0, 100);
     myCircle.style('background', color(myHue, 100, 100));
     myCircle.style('border-radius', '5px');
     myCircle.style('display', 'inline-block');
@@ -301,7 +275,6 @@ function addHTML() {
   }
 
   for (let i = 1; i < intervals.length; i++) {
-    //console.log(i);
     spacer = createDiv('');
     spacer.style('display', 'block');
 
