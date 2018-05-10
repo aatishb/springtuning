@@ -11,10 +11,17 @@ module.exports = {
         "p5js/sound",
         "prettier"
     ],
+    "plugins": ["prettier"],
     "parserOptions": {
         "sourceType": "module"
     },
     "rules": {
+        "prettier/prettier": [
+          "error",
+          {
+            "singleQuote": true
+          }
+        ],
         "indent": [
             "error",
             2

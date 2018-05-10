@@ -488,7 +488,7 @@ function equalTemperedCirclePositions() {
   let circleRadius = 0.75 * min(width / 2, height / 2);
 
   for (let i = 0; i < noteLabels.length; i++) {
-    let myAngle = map(posToCents(i * 100), 0, 1200, 0, 360) + 90;
+    let myAngle = map(i * 100, 0, 1200, 0, 360) + 90;
     myAngle = radians(myAngle);
 
     equalTemperedCirclePos.push({
