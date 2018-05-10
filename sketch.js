@@ -15,17 +15,18 @@ let notes;
 let springs;
 
 // display
-let scaleFactor = 2.2; // scales down the x sizes
-let offset = 50; // x position of first notes
+let offset = 50; // x position of first note
+let circlePos = [];
+let equalTemperedCirclePos = [];
 
 // UI
 let springSliderArray = [];
-let sel;
 
 function setup() {
-  var cnv = createCanvas(600, 200);
-  cnv.style('display', 'block');
-  colorMode(HSB, 120);
+  var canvas = createCanvas(windowWidth, 400);
+  canvas.parent('sketch-holder');
+  canvas.style('display', 'block');
+  colorMode(HSB, 100);
 
   // display settings
   strokeWeight(2);
@@ -39,25 +40,58 @@ function setup() {
   // initialize particles, and add to particle array
   notes = new notesObject();
   notes.initialize(tuningArray);
-
-  notes.particleArray[0].lock(); // lock c note spatially
+  notes.particleArray[0].lock(); // lock C note spatially
 
   // initialize springs
   springs = new springsObject();
   springs.initialize(tuningArray, 0.001);
 
+  let button = createCheckbox('lock C', true);
+  button.position(10, 10);
+  button.mouseClicked(lockC);
+
   addHTML(); // adds HTML elements (sliders and checkboxes)
 
+  updateCircles();
+  equalTemperedCirclePositions();
+
+}
+
+function lockC(){
+  if(this.checked()){
+    notes.particleArray[0].x = centsToPos(0);
+    notes.particleArray[0].lock(); // lock c note spatially
+  }
+  else{
+    notes.particleArray[0].unlock(); // unlock c note spatially
+  }
 }
 
 function draw() {
 
   background(0, 0, 30);
 
+  updateCircles();
+
   // draw springs
   stroke(200);
   for (let spring of physics.springs) {
+
+    let noteAIndex = noteLabels.indexOf(spring.noteA);
+    let noteBIndex = noteLabels.indexOf(spring.noteB);
+
+    //let myHue = map(abs(noteAIndex-noteBIndex), 0, noteLabels.length, 0, 100);
+    //stroke(myHue, 100, 100);
+
     line(spring.a.x, spring.a.y, spring.b.x, spring.b.y);
+
+
+    line(
+      circlePos[noteAIndex].x,
+      circlePos[noteAIndex].y,
+      circlePos[noteBIndex].x,
+      circlePos[noteBIndex].y
+    );
   }
 
   noStroke();
@@ -80,11 +114,11 @@ function centsToFreq(cents_from_c) {
 }
 
 function centsToPos(cents_from_c) {
-  return cents_from_c / scaleFactor + offset;
+  return map(cents_from_c, 0, 1200, offset, width - offset);
 }
 
 function posToCents(position) {
-  return (position - offset) * scaleFactor;
+  return map(position, offset, width - offset, 0, 1200);
 }
 
 function ratioToCents(ratio) {
@@ -104,10 +138,12 @@ function adjustSpringStiffness() {
 
 function toggleNote() {
 
-  if (this.checked()) {
+  if (!this.pressed) {
     notes.addNote(this.index);
+    this.pressed = true;
   } else {
     notes.removeNote(this.index);
+    this.pressed = false;
   }
 
 }
@@ -130,9 +166,7 @@ function toggleSpring() {
       allowedIntervals.splice(myIndex, 1);
     }
   }
-
 }
-
 
 // mouse interaction
 
@@ -157,6 +191,7 @@ function moveNearbyNodeToMouse() {
 function notesObject() {
 
   this.particleArray;
+  this.activeNotes; // TODO: add this later
 
   this.reset = function(){
     this.particleArray = [];
@@ -167,7 +202,7 @@ function notesObject() {
     this.reset();
 
     for(let myNote of tuningArray){
-      let myParticle = new VerletParticle2D(centsToPos(myNote), 100);
+      let myParticle = new VerletParticle2D(centsToPos(myNote), 7.5 * height / 8);
 
       myParticle.freq = centsToFreq(myNote);
 
@@ -193,8 +228,12 @@ function notesObject() {
         let noteIndex = noteLabels.indexOf(myParticle.noteLabel);
         let myHue = map(noteIndex, 0, noteLabels.length, 0, 100);
 
+        fill(myHue, 100, 100, 20);
+        ellipse(equalTemperedCirclePos[noteIndex].x, equalTemperedCirclePos[noteIndex].y, 20);
+
         fill(myHue, 100, 100);
         ellipse(myParticle.x, myParticle.y, 20); // draw notes
+        ellipse(circlePos[noteIndex].x, circlePos[noteIndex].y, 20);
 
         this.updateFreq(noteIndex); // update frequency
 
@@ -258,7 +297,6 @@ function notesObject() {
   this.updateFreq = function(index){
 
     let myParticle = this.particleArray[index];
-
     myParticle.osc.freq(
       centsToFreq(
         posToCents(myParticle.x)
@@ -286,7 +324,7 @@ function springsObject() {
         let newSpring = new VerletSpring2D(
           notes.particleArray[i],
           notes.particleArray[j],
-          tuningArray[i - j] / scaleFactor,
+          centsToPos(tuningArray[i-j]) - centsToPos(1),
           defaultStiffness);
 
         newSpring.interval = intervalLabels[i-j];
@@ -376,49 +414,50 @@ function springsObject() {
 
 function addHTML() {
 
-  let spacer = createDiv(' ');
-  spacer.style('display', 'block');
-
   for (let myNote of noteLabels) {
-    let spacer = createDiv('');
-    spacer.style('display', 'inline-block');
 
     let noteIndex = noteLabels.indexOf(myNote);
 
     // UI elements (checkboxes)
-    let checkbox = createCheckbox(myNote, false);
-    checkbox.index = noteIndex;
-    checkbox.changed(toggleNote);
-    checkbox.style('display', 'inline-block');
+
+    let key = select('#'+myNote);
+    key.index = noteIndex;
+    key.pressed = false;
+    key.mouseClicked(toggleNote);
 
     let myCircle = createDiv('');
     myCircle.size(10, 10);
     let myHue = map(noteIndex, 0, noteLabels.length, 0, 100);
     myCircle.style('background', color(myHue, 100, 100));
     myCircle.style('border-radius', '5px');
-    myCircle.style('display', 'inline-block');
-    myCircle.style('margin-left', '3px');
+    myCircle.style('width', '10px');
+    myCircle.style('margin', 'auto auto 0');
+
+    key.child(myCircle);
   }
 
+
   for (let myInterval of intervalLabels) {
-    let mySpacer = createDiv('');
-    mySpacer.style('display', 'none');
+
+    let springwrapper = createDiv('');
+    springwrapper.parent('#springsliders');
 
     // UI elements (sliders)
     let springCheckbox = createCheckbox(myInterval + ' spring', true);
     springCheckbox.style('display', 'none');
     springCheckbox.interval = myInterval;
     springCheckbox.changed(toggleSpring);
+    springCheckbox.parent(springwrapper);
 
-    let springSlider = createSlider(1, 50, 1);
+    let springSlider = createSlider(1, 1000, 1);
     springSlider.style('display', 'none');
     springSlider.interval = myInterval;
     springSlider.changed(adjustSpringStiffness);
+    springSlider.parent(springwrapper);
 
     springSliderArray.push(
       {
         interval: myInterval,
-        spacer: mySpacer,
         checkbox: springCheckbox,
         slider: springSlider
       });
@@ -444,14 +483,14 @@ function updateSpringSliders(){
   // and add sliders for all these intervals
 
   for(let mySpringSlider of springSliderArray){
-    mySpringSlider.spacer.style('display', 'none');
+    // mySpringSlider.spacer.style('display', 'none');
     mySpringSlider.checkbox.style('display', 'none');
     mySpringSlider.slider.style('display', 'none');
   }
 
   for(let mySpringSlider of springSliderArray){
     if(currentIntervals.includes(mySpringSlider.interval)){
-      mySpringSlider.spacer.style('display', 'block');
+      // mySpringSlider.spacer.style('display', 'block');
       mySpringSlider.checkbox.style('display', 'inline-block');
       mySpringSlider.slider.style('display', 'inline-block');
     }
@@ -465,4 +504,50 @@ function touchStarted() {
   if (getAudioContext().state !== 'running') {
     getAudioContext().resume();
   }
+}
+
+function updateCircles(){
+
+  circlePos = [];
+
+  let xCenter = width / 2;
+  let yCenter = (7/8) * height / 2;
+  let circleRadius = 0.75 * min(width/2, height/2);
+
+  for(let myParticle of notes.particleArray){
+
+    let myAngle = map(posToCents(myParticle.x), 0, 1200, 0, 360) + 90;
+    myAngle = radians(myAngle);
+
+    circlePos.push(
+      {
+        x: xCenter - circleRadius * cos(myAngle),
+        y: yCenter - circleRadius * sin(myAngle)
+      });
+
+  }
+
+}
+
+function equalTemperedCirclePositions(){
+
+  equalTemperedCirclePos = [];
+
+  let xCenter = width / 2;
+  let yCenter = (7 / 8) * height / 2;
+  let circleRadius = 0.75 * min(width / 2, height / 2);
+
+  for(let myParticle of notes.particleArray){
+
+    let myAngle = map(posToCents(myParticle.x), 0, 1200, 0, 360) + 90;
+    myAngle = radians(myAngle);
+
+    equalTemperedCirclePos.push(
+      {
+        x: xCenter - circleRadius * cos( myAngle ),
+        y: yCenter - circleRadius * sin( myAngle )
+      });
+
+  }
+
 }

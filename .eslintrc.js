@@ -8,7 +8,8 @@ module.exports = {
         "eslint:recommended",
         "p5js",
         "p5js/dom",
-        "p5js/sound"
+        "p5js/sound",
+        "prettier"
     ],
     "parserOptions": {
         "sourceType": "module"

@@ -2,3 +2,51 @@ html, body {
   margin: 0;
   padding: 0;
 }
+
+#wrapper {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+}
+
+#springsliders {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+
+#keyboard {
+}
+
+.key {
+  float: left;
+  position: relative;
+  display: flex;
+}
+
+.white {
+  height: calc(1.5*14.4vw);
+  width: calc(1.5*3.8095238095vw);
+  z-index: 1;
+  border-top: calc(1.5*0.12vw) solid #AAAAAA;
+  border-bottom: calc(1.5*0.12vw) solid #AAAAAA;
+  border-left: calc(1.5*0.12vw) solid #AAAAAA;
+  background-color: white;
+}
+
+.black {
+  height: calc(1.5*7.92vw);
+  width: calc(1.5*2.0952380952vw);
+  z-index: 2;
+  border: calc(1.5*0.12vw) solid #000000;
+  background-color: #222222;
+}
+
+.a, .b, .d, .e, .g, .black {
+  margin: 0 0 0 calc(1.5*-1.1676190476vw);
+}
+
+#keyboard > .key:last-child {
+  border-right: calc(1.5*0.12vw) solid #AAAAAA;
+}
