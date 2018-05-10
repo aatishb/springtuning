@@ -66,15 +66,6 @@ function setup() {
   equalTemperedCirclePositions();
 }
 
-function lockC() {
-  if (this.checked()) {
-    notes.particleArray[0].x = centsToPos(0);
-    notes.particleArray[0].lock(); // lock c note spatially
-  } else {
-    notes.particleArray[0].unlock(); // unlock c note spatially
-  }
-}
-
 function draw() {
   background(0, 0, 30);
 
@@ -165,6 +156,17 @@ function toggleSpring() {
     if (myIndex > -1) {
       allowedIntervals.splice(myIndex, 1);
     }
+  }
+}
+
+// UI update function: locks C note
+
+function lockC() {
+  if (this.checked()) {
+    notes.particleArray[0].x = centsToPos(0); // reset c positions
+    notes.particleArray[0].lock(); // lock c note
+  } else {
+    notes.particleArray[0].unlock(); // unlock c note
   }
 }
 
@@ -485,8 +487,8 @@ function equalTemperedCirclePositions() {
   let yCenter = 7 / 8 * height / 2;
   let circleRadius = 0.75 * min(width / 2, height / 2);
 
-  for (let myParticle of notes.particleArray) {
-    let myAngle = map(posToCents(myParticle.x), 0, 1200, 0, 360) + 90;
+  for (let i = 0; i < noteLabels.length; i++) {
+    let myAngle = map(posToCents(i * 100), 0, 1200, 0, 360) + 90;
     myAngle = radians(myAngle);
 
     equalTemperedCirclePos.push({
