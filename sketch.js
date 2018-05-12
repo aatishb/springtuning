@@ -1,5 +1,4 @@
 const intervalLabels = [
-  'unison',
   'minor second',
   'major second',
   'minor third',
@@ -10,12 +9,17 @@ const intervalLabels = [
   'minor sixth',
   'major sixth',
   'minor seventh',
-  'major seventh'
+  'major seventh',
+  'octave'
 ];
 
-const noteLabels = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+let noteLabelsInAnOctave = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+let octaves = [3, 4, 5];
+let noteLabels = [];
 
-let tuningArray = [1, 25 / 24, 9 / 8, 6 / 5, 5 / 4, 4 / 3, 45 / 32, 3 / 2, 8 / 5, 5 / 3, 9 / 5, 15 / 8];
+const cFreq = 261.6255653;
+
+let tuningArray = [25 / 24, 9 / 8, 6 / 5, 5 / 4, 4 / 3, 45 / 32, 3 / 2, 8 / 5, 5 / 3, 9 / 5, 15 / 8, 2];
 
 let allowedIntervals = intervalLabels;
 
@@ -49,8 +53,10 @@ function setup() {
 
   // initialize particles, and add to particle array
   notes = new notesObject();
-  notes.initialize(tuningArray);
+  notes.initialize();
   notes.particleArray[0].lock(); // lock C note spatially
+  //notes.particleArray[12].lock(); // lock C note spatially
+  //notes.particleArray[24].lock(); // lock C note spatially
 
   // initialize springs
   springs = new springsObject();
@@ -103,17 +109,32 @@ function draw() {
 
 // helper functions
 
-function centsToFreq(cents_from_c) {
-  let cfreq = 261.63; // absolute frequency of C
-  return cfreq * pow(2, cents_from_c / 1200);
+function noteToFreq(whichNote) {
+  let whichNoteInAnOctave = whichNote.slice(0, -1);
+  let whichOctave = int(whichNote.slice(-1));
+  let noteIndex = noteLabelsInAnOctave.indexOf(whichNoteInAnOctave);
+  let myFreq = cFreq * pow(2, noteIndex / 12) * pow(2, whichOctave - 4);
+  return round(myFreq * 100) / 100;
 }
 
-function centsToPos(cents_from_c) {
-  return map(cents_from_c, 0, 1200, offset, width - offset);
+function noteToCents(whichNote) {
+  return round(freqToCents(noteToFreq(whichNote)));
+}
+
+function freqToCents(noteFreq) {
+  return ratioToCents(noteFreq / cFreq);
+}
+
+function centsToFreq(cents_from_c4) {
+  return cFreq * pow(2, cents_from_c4 / 1200);
+}
+
+function centsToPos(cents_from_c4) {
+  return map(cents_from_c4, -1200, 2400, offset, width - offset);
 }
 
 function posToCents(position) {
-  return map(position, offset, width - offset, 0, 1200);
+  return map(position, offset, width - offset, -1200, 2400);
 }
 
 function ratioToCents(ratio) {
@@ -163,7 +184,7 @@ function toggleSpring() {
 
 function lockC() {
   if (this.checked()) {
-    notes.particleArray[0].x = centsToPos(0); // reset c positions
+    notes.particleArray[0].x = centsToPos(-1200); // reset c positions
     notes.particleArray[0].lock(); // lock c note
   } else {
     notes.particleArray[0].unlock(); // unlock c note
@@ -191,22 +212,34 @@ function moveNearbyNodeToMouse() {
 // each note is an object
 function notesObject() {
   this.particleArray;
-  this.activeNotes; // TODO: add this later
 
   this.reset = function() {
     this.particleArray = [];
   };
 
-  this.initialize = function(tuningArray) {
+  this.initialize = function() {
     this.reset();
 
-    for (let myNote of tuningArray) {
+    for (let myOctave of octaves) {
+      for (let myNote of noteLabelsInAnOctave) {
+        noteLabels.push(myNote + myOctave);
+      }
+    }
+
+    for (let myNote of noteLabels) {
+      /*
+      console.log(
+        myNote + ' ' +noteToFreq(myNote) + ' Hz '
+        + noteToCents(myNote) + ' cents'
+      );
+      */
+
       let myParticle = new VerletParticle2D(
-        centsToPos(myNote),
+        centsToPos(noteToCents(myNote)),
         7.5 * height / 8
       );
 
-      myParticle.freq = centsToFreq(myNote);
+      myParticle.freq = noteToFreq(myNote);
 
       let newOsc = new p5.Oscillator();
       newOsc.setType('sawtooth');
@@ -216,7 +249,7 @@ function notesObject() {
 
       myParticle.osc = newOsc;
 
-      myParticle.noteLabel = noteLabels[tuningArray.indexOf(myNote)];
+      myParticle.noteLabel = myNote;
 
       this.particleArray.push(myParticle);
     }
@@ -226,7 +259,7 @@ function notesObject() {
     for (let myParticle of this.particleArray) {
       if (physics.particles.includes(myParticle)) {
         let noteIndex = noteLabels.indexOf(myParticle.noteLabel);
-        let myHue = map(noteIndex, 0, noteLabels.length, 0, 100);
+        let myHue = map(noteIndex % 12, 0, 12, 0, 100);
 
         fill(myHue, 100, 100, 20);
         ellipse(
@@ -300,18 +333,33 @@ function springsObject() {
   this.initialize = function(tuningArray, defaultStiffness = 0.001) {
     this.reset();
 
-    for (let i = 0; i < tuningArray.length; i++) {
+    for (let i = 0; i < noteLabels.length; i++) {
       for (let j = 0; j < i; j++) {
+        let centOffset = 0;
+
+        if (i - j > 12) {
+          centOffset = 1200 * floor((i - j - 1) / 12);
+        }
+
+        let springLength =
+          centsToPos(tuningArray[(i - j - 1) % 12] + centOffset) -
+          centsToPos(1);
+
         let newSpring = new VerletSpring2D(
           notes.particleArray[i],
           notes.particleArray[j],
-          centsToPos(tuningArray[i - j]) - centsToPos(1),
+          springLength,
           defaultStiffness
         );
 
-        newSpring.interval = intervalLabels[i - j];
+        newSpring.interval = intervalLabels[(i - j - 1) % 12];
         newSpring.noteA = noteLabels[i];
         newSpring.noteB = noteLabels[j];
+
+        /*
+        console.log('i: '+i + ' j:' + j + ' i-j: '+ (i-j) + ' offset: ' + centOffset);
+        console.log(round(springLength) + ' ' + newSpring.interval);
+        */
 
         this.springArray.push(newSpring);
       }
@@ -392,7 +440,7 @@ function addHTML() {
 
     let myCircle = createDiv('');
     myCircle.size(10, 10);
-    let myHue = map(noteIndex, 0, noteLabels.length, 0, 100);
+    let myHue = map(noteIndex % 12, 0, 12, 0, 100);
     myCircle.style('background', color(myHue, 100, 100));
     myCircle.style('border-radius', '5px');
     myCircle.style('width', '10px');
@@ -488,7 +536,7 @@ function equalTemperedCirclePositions() {
   let circleRadius = 0.75 * min(width / 2, height / 2);
 
   for (let i = 0; i < noteLabels.length; i++) {
-    let myAngle = map(i * 100, 0, 1200, 0, 360) + 90;
+    let myAngle = map((i * 100) % 1200, 0, 1200, 0, 360) + 90;
     myAngle = radians(myAngle);
 
     equalTemperedCirclePos.push({
