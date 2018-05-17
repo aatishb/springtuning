@@ -58,10 +58,6 @@ function setup() {
   // initialize springs
   sim.initializeSprings(tuningArray, 0.001);
 
-  let button = createCheckbox('lock C', true);
-  button.position(10, 10);
-  button.mouseClicked(lockC);
-
   addHTML(); // adds HTML elements (sliders and checkboxes)
 
   equalTemperedCirclePositions();
@@ -145,24 +141,32 @@ function ratioToCents(ratio) {
   return 1200 * log(ratio) / log(2);
 }
 
-// UI update function: enables and disables
-// oscillators/particles/springs
-// for a given note
+// UI update function: enables and disables a given note
 
-function toggleNote() {
+function toggleKey() {
   if (!this.pressed) {
-    sim.addNote(this.index);
-    this.pressed = true;
-    if (this.originalColor == "rgb(255, 255, 255)") {
-      this.style('background-color', color(55, 20, 100));
-    } else if (this.originalColor == "rgb(34, 34, 34)") {
-      this.style('background-color', color(55, 20, 65));
-    }
+    pressKey(this);
   } else {
-    sim.removeNote(this.index);
-    this.pressed = false;
-    this.style('background-color', this.originalColor);
+    releaseKey(this);
   }
+}
+
+function pressKey(key) {
+  sim.addNote(key.index);
+  key.pressed = true;
+
+  // TODO: there's probably a better way to do this
+  if (key.originalColor == "rgb(255, 255, 255)") {
+    key.style('background-color', color(55, 20, 100));
+  } else if (key.originalColor == "rgb(34, 34, 34)") {
+    key.style('background-color', color(55, 20, 65));
+  }
+}
+
+function releaseKey(key) {
+  sim.removeNote(key.index);
+  key.pressed = false;
+  key.style('background-color', key.originalColor);
 }
 
 // UI update function: adds or removes all the springs for a musical interval
@@ -436,6 +440,10 @@ function particleSpringSystem() {
 // adds HTML elements
 
 function addHTML() {
+  let button = createCheckbox('lock C', true);
+  button.position(10, 10);
+  button.mouseClicked(lockC);
+
   for (let myNote of noteLabels) {
     let noteIndex = noteLabels.indexOf(myNote);
 
@@ -444,7 +452,7 @@ function addHTML() {
     key.index = noteIndex;
     key.pressed = false;
     key.originalColor = key.style('background-color');
-    key.mouseClicked(toggleNote);
+    key.mouseClicked(toggleKey);
 
     let myCircle = createDiv('');
     myCircle.size(10, 10);
