@@ -156,9 +156,9 @@ function pressKey(key) {
   key.pressed = true;
 
   // TODO: there's probably a better way to do this
-  if (key.originalColor == "rgb(255, 255, 255)") {
+  if (key.originalColor == 'rgb(255, 255, 255)') {
     key.style('background-color', color(55, 20, 100));
-  } else if (key.originalColor == "rgb(34, 34, 34)") {
+  } else if (key.originalColor == 'rgb(34, 34, 34)') {
     key.style('background-color', color(55, 20, 65));
   }
 }
@@ -235,7 +235,6 @@ function touchEnded() {
 function particleSpringSystem() {
   this.particleArray = [];
   this.springArray = [];
-
 
   this.initializeParticles = function() {
     this.particleArray = [];
