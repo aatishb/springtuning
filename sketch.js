@@ -27,6 +27,7 @@ let allowedIntervals = intervalLabels;
 // physics
 let physics;
 let sim;
+let stats;
 
 // display
 let offset = 50; // x position of first note
@@ -78,6 +79,7 @@ function setup() {
   select('#stats-holder').child(statsdiv);
 
   equalTemperedCirclePos = circlePositions(noteLabels, indexToAngle);
+
   var t1 = performance.now();
   console.log("Setup took " + (t1 - t0) + " milliseconds.");
 }
