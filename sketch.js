@@ -288,14 +288,14 @@ function particleSpringSystem() {
   this.addNote = function(whichParticle) {
     this.addParticle(whichParticle);
     this.play(whichParticle);
-    sim.addSpringsByNote(whichParticle);
+    this.addSpringsByNote(whichParticle);
     updateSpringSliders();
   };
 
   this.removeNote = function(whichParticle) {
     this.removeParticle(whichParticle);
     this.mute(whichParticle);
-    sim.removeSpringsByNote(whichParticle);
+    this.removeSpringsByNote(whichParticle);
     updateSpringSliders();
   };
 
@@ -481,7 +481,7 @@ function adjustSpringStiffness() {
 }
 
 function updateSpringSliders() {
-  // and add sliders for all these intervals
+  // hide all sliders
   springSliderArray.forEach(mySlider => {
     mySlider.checkbox.style('display', 'none');
     mySlider.slider.style('display', 'none');
@@ -496,6 +496,7 @@ function updateSpringSliders() {
     .filter(spring => endpointsOnScreen(spring))
     .map(spring => spring.interval);
 
+  // only show sliders for those intervals
   springSliderArray
     .filter(mySlider => currentIntervals.includes(mySlider.interval))
     .forEach(mySlider => {
