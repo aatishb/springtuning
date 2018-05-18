@@ -27,7 +27,6 @@ let allowedIntervals = intervalLabels;
 // physics
 let physics;
 let sim;
-let stats;
 
 // display
 let offset = 50; // x position of first note
@@ -44,7 +43,6 @@ const indexToAngle = index =>
 
 const posToAngle = position =>
   radians(map(posToCents(position), 0, 1200, 0, 360) + 90);
-
 
 function setup() {
   var t0 = performance.now();
@@ -81,7 +79,7 @@ function setup() {
   equalTemperedCirclePos = circlePositions(noteLabels, indexToAngle);
 
   var t1 = performance.now();
-  console.log("Setup took " + (t1 - t0) + " milliseconds.");
+  console.log('Setup took ' + (t1 - t0) + ' milliseconds.');
 }
 
 function draw() {
