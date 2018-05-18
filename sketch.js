@@ -26,6 +26,7 @@ let allowedIntervals = intervalLabels;
 // physics
 let physics;
 let sim;
+let stats;
 
 // display
 let offset = 50; // x position of first note
@@ -37,6 +38,7 @@ let springSliderArray = [];
 let grabbedParticle;
 
 function setup() {
+  var t0 = performance.now();
   var canvas = createCanvas(windowWidth, 400);
   canvas.parent('sketch-holder');
   canvas.style('display', 'block');
@@ -59,11 +61,17 @@ function setup() {
   sim.initializeSprings(tuningArray, 0.001);
 
   addHTML(); // adds HTML elements (sliders and checkboxes)
+  stats = new Stats();
+  let statsdiv = new p5.Element(stats.dom);
+  select('#stats-holder').child(statsdiv);
 
   equalTemperedCirclePositions();
+  var t1 = performance.now();
+  console.log("Setup took " + (t1 - t0) + " milliseconds.");
 }
 
 function draw() {
+  stats.begin();
   background(0, 0, 30);
 
   updateCircles();
@@ -105,6 +113,7 @@ function draw() {
   noStroke();
   sim.updateNotes(); // draw notes and update frequencies
   physics.update(); // update positions, etc.
+  stats.end();
 }
 
 // helper functions

@@ -9,6 +9,13 @@ html, body {
 	align-items: center;
 }
 
+#stats-holder {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: inline;
+}
+
 #springsliders {
   display: flex;
   flex-direction: column;
