@@ -76,7 +76,10 @@ function setup() {
   let statsdiv = new p5.Element(stats.dom);
   select('#stats-holder').child(statsdiv);
 
-  equalTemperedCirclePos = circlePositions(noteLabels, indexToAngle);
+  equalTemperedCirclePos = circlePositions(
+    noteLabels.map((val, index) => index),
+    indexToAngle
+  );
 
   var t1 = performance.now();
   console.log('Setup took ' + (t1 - t0) + ' milliseconds.');
@@ -508,10 +511,8 @@ function circlePositions(
   yCenter = 7 / 8 * height / 2,
   circleRadius = 0.75 * min(width / 2, height / 2)
 ) {
-  const indexToAngle = indexToAngleFunction;
-
   return myArray.map(index => ({
-    x: xCenter - circleRadius * cos(indexToAngle(index)),
-    y: yCenter - circleRadius * sin(indexToAngle(index))
+    x: xCenter - circleRadius * cos(indexToAngleFunction(index)),
+    y: yCenter - circleRadius * sin(indexToAngleFunction(index))
   }));
 }
