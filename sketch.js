@@ -572,9 +572,12 @@ function addGUI() {
   springSliders.controllers = [];
   let noteCheckboxes = gui.addFolder('lock notes');
 
-  Object.keys(sim.lockedNotes).forEach(note => {
-    let controller = noteCheckboxes.add(sim.lockedNotes, note);
-    controller.onChange(val => sim.lockNote(note));
+  octaves.forEach(octave => {
+    let subfolder = noteCheckboxes.addFolder('octave '+octave);
+    notes.forEach(note => {
+      let controller = subfolder.add(sim.lockedNotes, note + octave);
+      controller.onChange(val => sim.lockNote(note + octave));
+    });
   });
 
   gui.add(sim, 'logNotes');
