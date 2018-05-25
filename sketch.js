@@ -95,8 +95,46 @@ function setup() {
     indexToAngle
   );
 
+  if (navigator.requestMIDIAccess) {
+    console.log('This browser supports WebMIDI!');
+    navigator.requestMIDIAccess().then(onMIDISuccess, onMIDIFailure);
+  } else {
+    console.log('WebMIDI is not supported in this browser.');
+  }
+
   var t1 = performance.now();
   console.log('Setup took ' + (t1 - t0) + ' milliseconds.');
+}
+
+// MIDI input following https://www.smashingmagazine.com/2018/03/web-midi-api/
+function onMIDISuccess(midiAccess){
+  for (let input of midiAccess.inputs.values()){
+    input.onmidimessage = getMIDIMessage;
+  }
+}
+
+function onMIDIFailure(){
+  console.log('Could not access your MIDI devices.');
+}
+
+function getMIDIMessage(message) {
+  let command = message.data[0];
+  let note = message.data[1] - 48;
+  if (note >= 0 && note <= 3 * 12) {
+    let key = sim.particleArray[note];
+    // a velocity value might not be included with a noteOff command
+    let velocity = message.data.length > 2 ? message.data[2] : 0;
+
+    if (command == 144) {
+      if (velocity > 0) {
+        sim.addNote(key);
+      } else {
+        sim.removeNote(key);
+      }
+    } else if (command == 128) {
+      sim.removeNote(key);
+    }
+  }
 }
 
 function draw() {
@@ -540,6 +578,8 @@ function particleSpringSystem() {
 }
 
 function addHTML() {
+  // TODO: disentangle the 'this' mess here
+  // so I can refer to keys outside this structure
   sim.particleArray.forEach((particle, index) => {
     let key = select('#' + noteLabels[index]);
     key.particle = particle;
