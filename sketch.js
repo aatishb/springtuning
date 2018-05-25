@@ -1,4 +1,5 @@
 const intervalLabels = [
+  'unison',
   'minor second',
   'major second',
   'minor third',
@@ -19,12 +20,19 @@ let noteLabels = [];
 
 const cFreq = 261.6255653;
 
-let tuningArray = [25 / 24, 9 / 8, 6 / 5, 5 / 4, 4 / 3, 45 / 32, 3 / 2, 8 / 5, 5 / 3, 9 / 5, 15 / 8, 2];
-//let tuningArray = [16 / 15, 9 / 8, 6 / 5, 5 / 4, 4 / 3, Math.sqrt(2), 3 / 2, 8 / 5, 5 / 3, 16 / 9, 15 / 8, 2];
+// prettier-ignore
+let tunings = {
+  'common just': [1/1, 16/15, 9/8, 6/5, 5/4, 4/3, 45/32, 3/2, 8/5, 5/3, 9/5, 15/8, 2/1],
+  'symmetric': [1/1, 16/15, 9/8, 6/5, 5/4, 4/3, Math.sqrt(2), 3/2, 8/5, 5/3, 16/9,  15/8,  2/1],
+  'enharmonic': [1/1, 17/16, 9/8, 19/16, 5/4, 21/16, 11/8, 3/2, 13/8, 27/16, 7/4, 15/8, 2/1],
+  'well tuned piano': [1/1, 567/512, 9/8, 147/128, 21/16, 1323/1024, 189/128, 3/2, 49/32, 7/4, 441/256, 63/32],
+  'pythagorean': [1/1, 256/243, 9/8, 32/27, 81/65, 4/3, 729/512, 3/2, 128/81, 27/16, 16/9, 243/128]
+};
 
 // physics
 let physics;
 let sim;
+let springStates = { Remove: 0, Flexible: 0.001, Rigid: 1 };
 
 // display
 let offset = 50; // x position of first note
@@ -32,9 +40,8 @@ let circlePos = [];
 let equalTemperedCirclePos = [];
 
 // UI
-let springSliderArray = [];
 let grabbedParticle;
-let stats;
+let stats, gui;
 
 const roundTwo = num => round(num * 100) / 100;
 
@@ -46,18 +53,18 @@ const posToAngle = position =>
 
 function setup() {
   var t0 = performance.now();
-  var canvas = createCanvas(windowWidth, 400);
+
+  let keyboard = select('#keyboard');
+  var canvas = createCanvas(windowWidth, 0.9 * windowHeight - keyboard.height);
   canvas.parent('sketch-holder');
   canvas.style('display', 'block');
-  colorMode(HSB, 100);
 
   // display settings
+  colorMode(HSB, 100);
   strokeWeight(2);
 
   // create physics world
   physics = new VerletPhysics2D();
-
-  tuningArray = tuningArray.map(ratioToCents);
 
   noteLabels = octaves
     .map(octave => notes.map(note => note + octave))
@@ -66,15 +73,22 @@ function setup() {
   // initialize particles, and add to particle array
   sim = new particleSpringSystem();
   sim.initializeParticles();
-  sim.particleArray[0].lock(); // lock C note spatially
+
+  sim.lockedNotes['C3'] = true;
+  sim.lockNote('C3');
+
+  sim.setTuning('common just');
 
   // initialize springs
-  sim.initializeSprings(tuningArray, 0.001);
+  sim.initializeSprings();
 
   addHTML(); // adds HTML elements (sliders and checkboxes)
   stats = new Stats();
   let statsdiv = new p5.Element(stats.dom);
   select('#stats-holder').child(statsdiv);
+
+  gui = new dat.GUI();
+  addGUI();
 
   equalTemperedCirclePos = circlePositions(
     noteLabels.map((val, index) => index),
@@ -119,6 +133,10 @@ function centsToPos(cents_from_c4) {
   return map(cents_from_c4, -1200, 2400, offset, width - offset);
 }
 
+function noteToPos(whichNote) {
+  return centsToPos(noteToCents(whichNote));
+}
+
 function posToCents(position) {
   return map(position, offset, width - offset, -1200, 2400);
 }
@@ -149,113 +167,6 @@ function releaseKey(key) {
   sim.removeNote(key.particle);
   key.pressed = false;
   key.style('background-color', key.originalColor);
-}
-
-// UI update function: adds or removes all the springs for a musical interval
-function toggleSpring() {
-  if (this.checked()) {
-    sim.addSpringsByInterval(this.interval);
-    sim.springArray
-      .filter(spring => spring.interval === this.interval)
-      .forEach(spring => (spring.allowed = true));
-  } else {
-    sim.removeSpringsByInterval(this.interval);
-    sim.springArray
-      .filter(spring => spring.interval === this.interval)
-      .forEach(spring => (spring.allowed = false));
-  }
-}
-
-// UI update function: locks C note
-
-function lockC() {
-  if (this.checked()) {
-    sim.particleArray[0].x = centsToPos(-1200); // reset c positions
-    sim.particleArray[0].lock(); // lock c note
-  } else {
-    sim.particleArray[0].unlock(); // unlock c note
-  }
-}
-
-function logNotes() {
-  const add = (x, y) => x + y;
-
-  const getNoteIndex = note => noteLabels.indexOf(note);
-  const myCentOffset = myNote =>
-    (getNoteIndex('C4') - getNoteIndex(myNote)) * 100;
-
-  let noteArray = physics.particles
-    .map(particle => ({
-      label: particle.noteLabel,
-      freq: posToCents(particle.x) + 1200,// + myCentOffset(particle.noteLabel),
-      index: getNoteIndex(particle.noteLabel)
-    }))
-    .sort((note1, note2) => note1.index - note2.index);
-
-  //console.log('Current Notes (deviation in cents from ET)');
-  //console.log(noteArray.map(x => x.freq));
-  //noteArray.forEach(arr => console.log(arr.label + ' : ' + roundTwo(arr.freq)));
-
-  //let mySum = noteArray.map(x => abs(x.freq)).reduce(add);
-  //console.log('Total deviation from ET: ' + mySum);
-
-  let indexArray = noteArray.map(e => e.index);
-
-  const phi1 = k =>
-    noteArray
-      //.map((e, i) => tuningArray[indexArray[i - k - 1]])
-      .map((e, i) => tuningArray[indexArray[i] - indexArray[k] - 1])
-      .filter((e, i) => i > k)
-      .reduce(add, 0);
-
-  const phi2 = k =>
-    noteArray
-      //.map((e, i) => tuningArray[indexArray[k - i - 1]])
-      .map((e, i) => tuningArray[indexArray[k] - indexArray[i] - 1])
-      .filter((e, i) => i < k)
-      .reduce(add, 0);
-
-  const phi = k => phi1(k) - phi2(k);
-
-  let a0 = noteArray[0].freq;
-  let phi0 = phi(0);
-
-  let predictedArray = noteArray.map(
-    (e, i, self) => a0 + (phi0 - phi(i)) / self.length
-  );
-
-  console.log('Note\tCurrent\tPredicted')
-  noteArray.forEach((arr, i) =>
-    console.log(
-      arr.label +
-        '\t\t' +
-        roundTwo(arr.freq) +
-        '\t\t' +
-        roundTwo(predictedArray[i])
-    )
-  );
-
-  // this seems to work, but only for consecutive notes, or equally spaced notes
-
-  /*
-  const getIntervalIndex = interval => intervalLabels.indexOf(interval);
-  let intervalArray = physics.springs
-    .filter(spring => (spring.allowed = true))
-    .map(spring => spring.interval)
-    .sort((int1, int2) => getIntervalIndex(int1) - getIntervalIndex(int2))
-    .filter((e, i, self) => i == self.indexOf(e)) // removes duplicates
-    .map(int => tuningArray[intervalLabels.indexOf(int)]);
-
-  console.log(noteArray[0].label + ' : ' + 0);
-  let n = noteArray.length;
-  for (let k = 1; k < n; k++) {
-    let sum = 0;
-    for (let i = 1; i <= k; i++) {
-      sum += intervalArray[i - 1] + intervalArray[n - i - 1];
-    }
-    console.log(noteArray[k].label + ' : ' + roundTwo(sum / n));
-  }
-  */
 }
 
 // mouse interaction
@@ -293,11 +204,18 @@ function touchEnded() {
 function particleSpringSystem() {
   this.particleArray = [];
   this.springArray = [];
+  this.tuningArray = [];
+  this.springTuning = '';
+
+  this.setTuning = function(choice) {
+    this.springTuning = choice;
+    this.tuningArray = tunings[choice].map(ratioToCents);
+  };
 
   this.initializeParticles = function() {
     this.particleArray = noteLabels.map(myNote => {
       let myParticle = new VerletParticle2D(
-        centsToPos(noteToCents(myNote)),
+        noteToPos(myNote),
         7.5 * height / 8
       );
 
@@ -367,45 +285,76 @@ function particleSpringSystem() {
     this.addParticle(whichParticle);
     this.play(whichParticle);
     this.addSpringsByNote(whichParticle);
-    updateSpringSliders();
+    updateGUI();
   };
 
   this.removeNote = function(whichParticle) {
     this.removeParticle(whichParticle);
     this.mute(whichParticle);
     this.removeSpringsByNote(whichParticle);
-    updateSpringSliders();
+    updateGUI();
+  };
+
+  this.lockNote = function(note) {
+    let noteIndex = noteLabels.indexOf(note);
+
+    if (this.lockedNotes[note]) {
+      sim.particleArray[noteIndex].x = noteToPos(note);
+      sim.particleArray[noteIndex].lock();
+    } else {
+      sim.particleArray[noteIndex].unlock();
+    }
   };
 
   this.updateFreq = function(myParticle) {
     myParticle.osc.freq(roundTwo(centsToFreq(posToCents(myParticle.x))), 0.01);
   };
 
-  this.initializeSprings = function(tuningArray, defaultStiffness = 0.001) {
+  // dict to keep track of locked notes
+  this.lockedNotes = noteLabels.reduce((dict, item) => {
+    dict[item] = false;
+    return dict;
+  }, {});
+
+  // dict to keep track of spring stiffness (by interval)
+  this.springStiffness = intervalLabels
+    .filter((e, i) => i > 0)
+    .reduce((dict, item) => {
+      dict[item] = 0.001;
+      return dict;
+    }, {});
+
+  this.initializeSprings = function() {
     this.springArray = [];
 
     for (let i = 0; i < noteLabels.length; i++) {
       for (let j = 0; j < i; j++) {
         let centOffset = 0;
+        let octaveSize = 1200;
 
-        if (i - j > 12) {
-          centOffset = 1200 * floor((i - j - 1) / 12);
+        if (i - j >= 12) {
+          centOffset = octaveSize * floor((i - j) / 12);
         }
 
         // centsToPos(x+1) - centsToPos(1) scales the springLength
         // by the correct factor
         let springLength =
-          centsToPos(tuningArray[(i - j - 1) % 12] + centOffset + 1) -
+          centsToPos(this.tuningArray[(i - j) % 12] + centOffset + 1) -
           centsToPos(1);
+
+        let whichInterval = intervalLabels[(i - j) % 12];
+        if (whichInterval == 'unison') {
+          whichInterval = 'octave';
+        }
 
         let newSpring = new VerletSpring2D(
           this.particleArray[i],
           this.particleArray[j],
           springLength,
-          defaultStiffness
+          this.springStiffness[whichInterval]
         );
 
-        newSpring.interval = intervalLabels[(i - j - 1) % 12];
+        newSpring.interval = whichInterval;
         newSpring.allowed = true;
         newSpring.noteA = noteLabels[i];
         newSpring.noteB = noteLabels[j];
@@ -413,6 +362,28 @@ function particleSpringSystem() {
         this.springArray.push(newSpring);
       }
     }
+  };
+
+  this.retuneSprings = function() {
+    this.springArray.forEach(spring => {
+      let i = noteLabels.indexOf(spring.noteA);
+      let j = noteLabels.indexOf(spring.noteB);
+
+      let centOffset = 0;
+      let octaveSize = 1200;
+
+      if (i - j >= 12) {
+        centOffset = octaveSize * floor((i - j) / 12);
+      }
+
+      // centsToPos(x+1) - centsToPos(1) scales the springLength
+      // by the correct factor
+      let springLength =
+        centsToPos(this.tuningArray[(i - j) % 12] + centOffset + 1) -
+        centsToPos(1);
+
+      spring.setRestLength(springLength);
+    });
   };
 
   this.drawSprings = function() {
@@ -467,6 +438,14 @@ function particleSpringSystem() {
     }
   };
 
+  this.allowSpring = function(whichSpring) {
+    whichSpring.allowed = true;
+  };
+
+  this.disallowSpring = function(whichSpring) {
+    whichSpring.allowed = false;
+  };
+
   this.springsByNote = function(whichFunction, myParticle) {
     const includesNote = (spring, myParticle) =>
       spring.a == myParticle || spring.b == myParticle;
@@ -496,29 +475,71 @@ function particleSpringSystem() {
 
   this.addSpringsByInterval = function(whichInterval) {
     this.springsByInterval(this.addSpring, whichInterval);
+    this.springsByInterval(this.allowSpring, whichInterval);
   };
 
   this.removeSpringsByInterval = function(whichInterval) {
     this.springsByInterval(this.removeSpring, whichInterval);
+    this.springsByInterval(this.disallowSpring, whichInterval);
   };
 
-  this.adjustSpringsByInterval = function(whichInterval, stiffness) {
-    this.springsByInterval(
-      spring => spring.setStrength(stiffness),
-      whichInterval
+  this.adjustSpringsByInterval = function(whichInterval) {
+    let stiffness = this.springStiffness[whichInterval];
+    if (stiffness == 0) {
+      this.removeSpringsByInterval(whichInterval);
+    } else {
+      this.addSpringsByInterval(whichInterval);
+      this.springsByInterval(
+        spring => spring.setStrength(stiffness),
+        whichInterval
+      );
+    }
+  };
+
+  this.logNotes = function() {
+    const add = (x, y) => x + y;
+
+    let noteArray = physics.particles
+      .map(particle => ({
+        label: particle.noteLabel,
+        freq: posToCents(particle.x) + 1200,
+        index: noteLabels.indexOf(particle.noteLabel)
+      }))
+      .sort((note1, note2) => note1.index - note2.index);
+
+    let indexArray = noteArray.map(e => e.index);
+
+    const phi1 = k =>
+      noteArray
+        .map((e, i) => this.tuningArray[indexArray[i] - indexArray[k]])
+        .filter((e, i) => i > k)
+        .reduce(add, 0);
+
+    const phi2 = k =>
+      noteArray
+        .map((e, i) => this.tuningArray[indexArray[k] - indexArray[i]])
+        .filter((e, i) => i < k)
+        .reduce(add, 0);
+
+    const phi = k => phi1(k) - phi2(k);
+
+    let a0 = noteArray[0].freq;
+    let phi0 = phi(0);
+
+    let predictedArray = noteArray.map(
+      (e, i, self) => a0 + (phi0 - phi(i)) / self.length
+    );
+
+    prompt(
+      'Predicted notes (assuming equal strength springs): ' +
+        predictedArray.map(e => roundTwo(e)) +
+        '\nCurrent notes (press Command+C or Ctrl+C to copy):',
+      noteArray.map(arr => roundTwo(arr.freq))
     );
   };
 }
 
 function addHTML() {
-  let button = createCheckbox('lock C', true);
-  button.position(10, 10);
-  button.mouseClicked(lockC);
-
-  let button2 = createButton('log notes');
-  button2.position(10, 50);
-  button2.mouseClicked(logNotes);
-
   sim.particleArray.forEach((particle, index) => {
     let key = select('#' + noteLabels[index]);
     key.particle = particle;
@@ -536,43 +557,31 @@ function addHTML() {
 
     key.child(myCircle);
   });
-
-  springSliderArray = intervalLabels.map(myInterval => {
-    let springwrapper = createDiv('');
-    springwrapper.parent('#springsliders');
-
-    let springCheckbox = createCheckbox(myInterval + ' spring', true);
-    springCheckbox.style('display', 'none');
-    springCheckbox.interval = myInterval;
-    springCheckbox.changed(toggleSpring);
-    springCheckbox.parent(springwrapper);
-
-    let springSlider = createSlider(1, 900, 1);
-    springSlider.style('display', 'none');
-    springSlider.interval = myInterval;
-    springSlider.changed(adjustSpringStiffness);
-    springSlider.parent(springwrapper);
-
-    return {
-      interval: myInterval,
-      checkbox: springCheckbox,
-      slider: springSlider
-    };
-  });
 }
 
-// UI update function: set spring stiffness
+let springSliders;
 
-function adjustSpringStiffness() {
-  sim.adjustSpringsByInterval(this.interval, this.value() / 1000);
+function addGUI() {
+  let dropdown = gui.add(sim, 'springTuning', Object.keys(tunings));
+  dropdown.onChange(val => {
+    sim.setTuning(val);
+    sim.retuneSprings();
+  });
+
+  springSliders = gui.addFolder('adjust springs');
+  springSliders.controllers = [];
+  let noteCheckboxes = gui.addFolder('lock notes');
+
+  Object.keys(sim.lockedNotes).forEach(note => {
+    let controller = noteCheckboxes.add(sim.lockedNotes, note);
+    controller.onChange(val => sim.lockNote(note));
+  });
+
+  gui.add(sim, 'logNotes');
 }
 
-function updateSpringSliders() {
-  // hide all sliders
-  springSliderArray.forEach(mySlider => {
-    mySlider.checkbox.style('display', 'none');
-    mySlider.slider.style('display', 'none');
-  });
+function updateGUI() {
+  springSliders.controllers.forEach(e => springSliders.remove(e));
 
   const endpointsOnScreen = mySpring =>
     physics.particles.includes(mySpring.a) &&
@@ -583,12 +592,18 @@ function updateSpringSliders() {
     .filter(spring => endpointsOnScreen(spring))
     .map(spring => spring.interval);
 
-  // only show sliders for those intervals
-  springSliderArray
-    .filter(mySlider => currentIntervals.includes(mySlider.interval))
-    .forEach(mySlider => {
-      mySlider.checkbox.style('display', 'inline');
-      mySlider.slider.style('display', 'inline');
+  // only show controllers for these intervals
+  springSliders.controllers = [];
+  Object.keys(sim.springStiffness)
+    .filter(interval => currentIntervals.includes(interval))
+    .forEach(interval => {
+      let controller = springSliders.add(
+        sim.springStiffness,
+        interval,
+        springStates
+      );
+      controller.onChange(val => sim.adjustSpringsByInterval(interval));
+      springSliders.controllers.push(controller);
     });
 }
 
