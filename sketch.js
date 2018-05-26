@@ -106,37 +106,6 @@ function setup() {
   console.log('Setup took ' + (t1 - t0) + ' milliseconds.');
 }
 
-// MIDI input following https://www.smashingmagazine.com/2018/03/web-midi-api/
-function onMIDISuccess(midiAccess){
-  for (let input of midiAccess.inputs.values()){
-    input.onmidimessage = getMIDIMessage;
-  }
-}
-
-function onMIDIFailure(){
-  console.log('Could not access your MIDI devices.');
-}
-
-function getMIDIMessage(message) {
-  let command = message.data[0];
-  let note = message.data[1] - 48;
-  if (note >= 0 && note <= 3 * 12) {
-    let key = sim.particleArray[note];
-    // a velocity value might not be included with a noteOff command
-    let velocity = message.data.length > 2 ? message.data[2] : 0;
-
-    if (command == 144) {
-      if (velocity > 0) {
-        sim.addNote(key);
-      } else {
-        sim.removeNote(key);
-      }
-    } else if (command == 128) {
-      sim.removeNote(key);
-    }
-  }
-}
-
 function draw() {
   stats.begin();
   background(0, 0, 30);
@@ -354,13 +323,14 @@ function particleSpringSystem() {
     return dict;
   }, {});
 
-  // dict to keep track of spring stiffness (by interval)
-  this.springStiffness = intervalLabels
-    .filter((e, i) => i > 0)
-    .reduce((dict, item) => {
-      dict[item] = 0.001;
-      return dict;
-    }, {});
+  this.weightToStiffness = x =>
+    0.0019697 * pow(-1 - 0.988197 / (x - 0.989914), 0.984288782454462);
+
+  // dictionary to keep track of spring weights (by interval)
+  this.weight = intervalLabels.filter((e, i) => i > 0).reduce((dict, item) => {
+    dict[item] = 0.1;
+    return dict;
+  }, {});
 
   this.initializeSprings = function() {
     this.springArray = [];
@@ -389,7 +359,7 @@ function particleSpringSystem() {
           this.particleArray[i],
           this.particleArray[j],
           springLength,
-          this.springStiffness[whichInterval]
+          this.weightToStiffness(this.weight[whichInterval])
         );
 
         newSpring.interval = whichInterval;
@@ -522,10 +492,11 @@ function particleSpringSystem() {
   };
 
   this.adjustSpringsByInterval = function(whichInterval) {
-    let stiffness = this.springStiffness[whichInterval];
-    if (stiffness == 0) {
+    let weight = this.weight[whichInterval];
+    if (weight == 0.002) {
       this.removeSpringsByInterval(whichInterval);
     } else {
+      let stiffness = this.weightToStiffness(weight);
       this.addSpringsByInterval(whichInterval);
       this.springsByInterval(
         spring => spring.setStrength(stiffness),
@@ -568,9 +539,26 @@ function particleSpringSystem() {
       (e, i, self) => a0 + (phi0 - phi(i)) / self.length
     );
 
+    /*
+    // calculating weights for three notes
+    // used for calibration
+    let I = (start, fin) =>
+      this.tuningArray[indexArray[fin] - indexArray[start]];
+    let a = i => noteArray[i].freq;
+
+    let w1 =
+      (-I(0, 1) + a(1) - a(0)) /
+      (I(0, 1) + 2 * I(0, 2) - 2 * I(1, 2) - 3 * (a(1) - a(0)));
+
+    let w2 =
+      (I(0, 1) + I(1, 2) - a(2) - a(0)) /
+      (I(0, 1) - 4 * I(0, 2) + I(1, 2) + 3 * a(2));
+    */
+
     prompt(
       'Predicted notes (assuming equal strength springs): ' +
         predictedArray.map(e => roundTwo(e)) +
+        '\nw: ' + roundTwo(w1) + ' w: ' + roundTwo(w2) +
         '\nCurrent notes (press Command+C or Ctrl+C to copy):',
       noteArray.map(arr => roundTwo(arr.freq))
     );
@@ -637,13 +625,13 @@ function updateGUI() {
 
   // only show controllers for these intervals
   springSliders.controllers = [];
-  Object.keys(sim.springStiffness)
+  Object.keys(sim.weight)
     .filter(interval => currentIntervals.includes(interval))
     .forEach(interval => {
       let controller = springSliders.add(
-        sim.springStiffness,
+        sim.weight,
         interval,
-        springStates
+        0.002, 0.988
       );
       controller.onChange(val => sim.adjustSpringsByInterval(interval));
       springSliders.controllers.push(controller);
@@ -662,3 +650,84 @@ function circlePositions(
     y: yCenter - circleRadius * sin(indexToAngleFunction(index))
   }));
 }
+
+// MIDI input following https://www.smashingmagazine.com/2018/03/web-midi-api/
+function onMIDISuccess(midiAccess){
+  for (let input of midiAccess.inputs.values()){
+    input.onmidimessage = getMIDIMessage;
+  }
+}
+
+function onMIDIFailure(){
+  console.log('Could not access your MIDI devices.');
+}
+
+function getMIDIMessage(message) {
+  // remove lowest nibble which is midi channel
+  let command = message.data[0] & 0xf0;
+  let note = message.data[1] - 48;
+  // a velocity value might not be included with a noteOff command
+  let velocity = message.data.length > 2 ? message.data[2] : 0;
+
+  if (note >= 0 && note <= 3 * 12) {
+    let key = sim.particleArray[note];
+
+    if (command == 144) {
+      if (velocity > 0) {
+        sim.addNote(key);
+      } else {
+        sim.removeNote(key);
+      }
+    } else if (command == 128) {
+      sim.removeNote(key);
+    }
+  }
+}
+
+/*
+// testing pitch bending
+// commenting out for now
+WebMidi.enable(function(err) {
+  if (err) {
+    console.log("WebMidi could not be enabled.", err);
+  } else {
+    console.log("WebMidi enabled!");
+  }
+
+  let input = WebMidi.inputs[0];
+
+  input.addListener('noteon', 'all', e => {
+    console.log(e);
+    let note = e.note.name + e.note.octave;
+    let noteIndex = noteLabels.indexOf(note);
+    if(noteIndex > -1){
+      let myParticle = sim.particleArray[noteIndex];
+      sim.addNote(myParticle);
+    }
+    //console.log("Received 'noteon' message (" + e.note.name + e.note.octave + ").");
+  });
+
+  input.addListener('noteoff', 'all', e => {
+    let note = e.note.name + e.note.octave;
+    let noteIndex = noteLabels.indexOf(note);
+    if(noteIndex > -1){
+      let myParticle = sim.particleArray[noteIndex];
+      sim.removeNote(myParticle);
+    }
+    //console.log("Received 'noteoff' message (" + e.note.name + e.note.octave + ").");
+  });
+
+  input.addListener('pitchbend', 'all', e => {
+    console.log(e);
+    //console.log("Received 'pitchbend' message.", e.data);
+    let something = e.data[0];
+    let bendAmplitude = e.data[1];
+    let bendDirection = e.data[2];
+    if (bendDirection == 63) {
+      console.log('num: ' + something + 'channel: '+ e.channel + ' pitchbend flat: ' + bendAmplitude);
+    } else if (bendDirection == 64) {
+      console.log('num: ' + something + 'channel: '+ e.channel + ' pitchbend sharp: ' + bendAmplitude);
+    }
+  });
+});
+*/
