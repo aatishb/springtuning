@@ -74,8 +74,8 @@ function setup() {
   sim = new particleSpringSystem();
   sim.initializeParticles();
 
-  sim.lockedNotes['C3'] = true;
-  sim.lockNote('C3');
+  //sim.lockedNotes['C3'] = true;
+  //sim.lockNote('C3');
 
   sim.setTuning('common just');
 
@@ -210,7 +210,13 @@ function touchEnded() {
 
 function particleSpringSystem() {
   this.particleArray = [];
+  this.ETparticleArray = [];
+
   this.springArray = [];
+
+  this.tetherSpringArray = [];
+  this.allowTethers = true;
+
   this.tuningArray = [];
   this.springTuning = '';
 
@@ -238,6 +244,17 @@ function particleSpringSystem() {
 
       return myParticle;
     });
+
+    this.ETparticleArray = noteLabels.map(myNote => {
+      let myParticle = new VerletParticle2D(
+        noteToPos(myNote),
+        7.5 * height / 8
+      );
+
+      myParticle.noteLabel = myNote;
+
+      return myParticle;
+    });
   };
 
   this.drawNotes = function(myParticle) {
@@ -260,6 +277,7 @@ function particleSpringSystem() {
     noStroke();
     this.particleArray
       .filter(particle => physics.particles.includes(particle))
+      .filter(particle => !this.ETparticleArray.includes(particle))
       .forEach(myParticle => {
         this.drawNotes(myParticle);
         this.updateFreq(myParticle);
@@ -290,6 +308,12 @@ function particleSpringSystem() {
 
   this.addNote = function(whichParticle) {
     this.addParticle(whichParticle);
+    if (this.allowTethers) {
+      let index = this.particleArray.indexOf(whichParticle);
+      let tetherNote = this.ETparticleArray[index];
+      this.addParticle(tetherNote);
+      tetherNote.lock();
+    }
     this.play(whichParticle);
     this.addSpringsByNote(whichParticle);
     updateGUI();
@@ -297,6 +321,12 @@ function particleSpringSystem() {
 
   this.removeNote = function(whichParticle) {
     this.removeParticle(whichParticle);
+    if (this.allowTethers) {
+      let index = this.particleArray.indexOf(whichParticle);
+      let tetherNote = this.ETparticleArray[index];
+      this.removeParticle(tetherNote);
+      tetherNote.lock();
+    }
     this.mute(whichParticle);
     this.removeSpringsByNote(whichParticle);
     updateGUI();
@@ -327,10 +357,14 @@ function particleSpringSystem() {
     0.0019697 * pow(-1 - 0.988197 / (x - 0.989914), 0.984288782454462);
 
   // dictionary to keep track of spring weights (by interval)
-  this.weight = intervalLabels.filter((e, i) => i > 0).reduce((dict, item) => {
-    dict[item] = 0.1;
-    return dict;
-  }, {});
+  this.springWeight = intervalLabels
+    .filter((e, i) => i > 0)
+    .reduce((dict, item) => {
+      dict[item] = 0.1;
+      return dict;
+    }, {});
+
+  this.tetherWeight = 0.1;
 
   this.initializeSprings = function() {
     this.springArray = [];
@@ -359,7 +393,7 @@ function particleSpringSystem() {
           this.particleArray[i],
           this.particleArray[j],
           springLength,
-          this.weightToStiffness(this.weight[whichInterval])
+          this.weightToStiffness(this.springWeight[whichInterval])
         );
 
         newSpring.interval = whichInterval;
@@ -369,6 +403,14 @@ function particleSpringSystem() {
 
         this.springArray.push(newSpring);
       }
+
+      let tetherSpring = new VerletSpring2D(
+        this.particleArray[i],
+        this.ETparticleArray[i],
+        0,
+        this.weightToStiffness(this.tetherWeight)
+      );
+      this.tetherSpringArray.push(tetherSpring);
     }
   };
 
@@ -394,6 +436,13 @@ function particleSpringSystem() {
     });
   };
 
+  this.isExtended = x =>
+    x > 0
+      ? stroke(100, map(x, 0, 10, 0, 100), 94)
+      : x == 0
+        ? stroke(0, 0, 94)
+        : stroke(64, map(x, -10, 0, 100, 0), 94);
+
   this.drawSprings = function() {
     // draw springs
     circlePos = circlePositions(
@@ -406,26 +455,32 @@ function particleSpringSystem() {
       let currentLength = spring.a.distanceTo(spring.b);
       let percentExtended = 100 * (currentLength / restLength) - 100;
 
-      const isExtended = x =>
-        x > 0
-          ? stroke(100, map(x, 0, 10, 0, 100), 94)
-          : x == 0
-            ? stroke(0, 0, 94)
-            : stroke(64, map(x, -10, 0, 100, 0), 94);
+      this.isExtended(percentExtended);
 
-      isExtended(percentExtended);
+      if (!this.tetherSpringArray.includes(spring)) {
+        line(spring.a.x, spring.a.y, spring.b.x, spring.b.y);
 
-      line(spring.a.x, spring.a.y, spring.b.x, spring.b.y);
+        let noteAIndex = noteLabels.indexOf(spring.noteA);
+        let noteBIndex = noteLabels.indexOf(spring.noteB);
 
-      let noteAIndex = noteLabels.indexOf(spring.noteA);
-      let noteBIndex = noteLabels.indexOf(spring.noteB);
-
-      line(
-        circlePos[noteAIndex].x,
-        circlePos[noteAIndex].y,
-        circlePos[noteBIndex].x,
-        circlePos[noteBIndex].y
-      );
+        line(
+          circlePos[noteAIndex].x,
+          circlePos[noteAIndex].y,
+          circlePos[noteBIndex].x,
+          circlePos[noteBIndex].y
+        );
+      }
+      /*
+      else {
+        let noteIndex = noteLabels.indexOf(spring.a.noteLabel);
+        line(
+          circlePos[noteIndex].x,
+          circlePos[noteIndex].y,
+          equalTemperedCirclePos[noteIndex].x,
+          equalTemperedCirclePos[noteIndex].y
+        );
+      }
+      */
     });
   };
 
@@ -466,10 +521,20 @@ function particleSpringSystem() {
 
   this.addSpringsByNote = function(myParticle) {
     this.springsByNote(this.addSpring, myParticle);
+    if (this.allowTethers) {
+      this.tetherSpringArray
+        .filter(spring => spring.a == myParticle || spring.b == myParticle)
+        .forEach(spring => this.addSpring(spring));
+    }
   };
 
   this.removeSpringsByNote = function(myParticle) {
     this.springsByNote(this.removeSpring, myParticle);
+    if (this.allowTethers) {
+      this.tetherSpringArray
+        .filter(spring => spring.a == myParticle || spring.b == myParticle)
+        .forEach(spring => this.removeSpring(spring));
+    }
   };
 
   this.springsByInterval = function(whichFunction, whichInterval) {
@@ -492,7 +557,7 @@ function particleSpringSystem() {
   };
 
   this.adjustSpringsByInterval = function(whichInterval) {
-    let weight = this.weight[whichInterval];
+    let weight = this.springWeight[whichInterval];
     if (weight == 0.002) {
       this.removeSpringsByInterval(whichInterval);
     } else {
@@ -502,6 +567,31 @@ function particleSpringSystem() {
         spring => spring.setStrength(stiffness),
         whichInterval
       );
+    }
+  };
+
+  this.adjustTetherSprings = function() {
+    if (this.allowTethers) {
+      let weight = this.tetherWeight;
+      if (weight == 0.002) {
+        this.tetherSpringArray.forEach(spring => physics.removeSpring(spring));
+      } else {
+        let stiffness = this.weightToStiffness(weight);
+        this.tetherSpringArray.forEach(spring => {
+          physics.addSpring(spring);
+          spring.setStrength(stiffness);
+        });
+      }
+    }
+  };
+
+  this.toggleTetherSprings = function() {
+    if (this.allowTethers) {
+      this.ETparticleArray.forEach(particle => physics.addParticle(particle));
+      this.tetherSpringArray.forEach(spring => physics.addSpring(spring));
+    } else {
+      this.ETparticleArray.forEach(particle => physics.removeParticle(particle));
+      this.tetherSpringArray.forEach(spring => physics.removeSpring(spring));
     }
   };
 
@@ -558,7 +648,7 @@ function particleSpringSystem() {
     prompt(
       'Predicted notes (assuming equal strength springs): ' +
         predictedArray.map(e => roundTwo(e)) +
-        '\nw: ' + roundTwo(w1) + ' w: ' + roundTwo(w2) +
+        //'\nw: ' + roundTwo(w1) + ' w: ' + roundTwo(w2) +
         '\nCurrent notes (press Command+C or Ctrl+C to copy):',
       noteArray.map(arr => roundTwo(arr.freq))
     );
@@ -596,12 +686,21 @@ function addGUI() {
     sim.retuneSprings();
   });
 
-  springSliders = gui.addFolder('adjust springs');
+  springSliders = gui.addFolder('interval springs');
   springSliders.controllers = [];
+
+  let tether = gui.addFolder('tether springs');
+
+  let tetherSwitch = tether.add(sim, 'allowTethers');
+  tetherSwitch.onChange(val => sim.toggleTetherSprings());
+
+  let tetherSlider = tether.add(sim, 'tetherWeight', 0.002, 0.988);
+  tetherSlider.onChange(val => sim.adjustTetherSprings());
+
   let noteCheckboxes = gui.addFolder('lock notes');
 
   octaves.forEach(octave => {
-    let subfolder = noteCheckboxes.addFolder('octave '+octave);
+    let subfolder = noteCheckboxes.addFolder('octave ' + octave);
     notes.forEach(note => {
       let controller = subfolder.add(sim.lockedNotes, note + octave);
       controller.onChange(val => sim.lockNote(note + octave));
@@ -625,13 +724,14 @@ function updateGUI() {
 
   // only show controllers for these intervals
   springSliders.controllers = [];
-  Object.keys(sim.weight)
+  Object.keys(sim.springWeight)
     .filter(interval => currentIntervals.includes(interval))
     .forEach(interval => {
       let controller = springSliders.add(
-        sim.weight,
+        sim.springWeight,
         interval,
-        0.002, 0.988
+        0.002,
+        0.988
       );
       controller.onChange(val => sim.adjustSpringsByInterval(interval));
       springSliders.controllers.push(controller);
@@ -652,13 +752,13 @@ function circlePositions(
 }
 
 // MIDI input following https://www.smashingmagazine.com/2018/03/web-midi-api/
-function onMIDISuccess(midiAccess){
-  for (let input of midiAccess.inputs.values()){
+function onMIDISuccess(midiAccess) {
+  for (let input of midiAccess.inputs.values()) {
     input.onmidimessage = getMIDIMessage;
   }
 }
 
-function onMIDIFailure(){
+function onMIDIFailure() {
   console.log('Could not access your MIDI devices.');
 }
 
