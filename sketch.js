@@ -360,11 +360,11 @@ function particleSpringSystem() {
   this.springWeight = intervalLabels
     .filter((e, i) => i > 0)
     .reduce((dict, item) => {
-      dict[item] = 0.1;
+      dict[item] = 0.5;
       return dict;
     }, {});
 
-  this.tetherWeight = 0.1;
+  this.tetherWeight = 0.2;
 
   this.initializeSprings = function() {
     this.springArray = [];
@@ -599,6 +599,7 @@ function particleSpringSystem() {
     const add = (x, y) => x + y;
 
     let noteArray = physics.particles
+      .filter(particle => !this.ETparticleArray.includes(particle))
       .map(particle => ({
         label: particle.noteLabel,
         freq: posToCents(particle.x) + 1200,
@@ -645,12 +646,14 @@ function particleSpringSystem() {
       (I(0, 1) - 4 * I(0, 2) + I(1, 2) + 3 * a(2));
     */
 
+    let currentArray = noteArray.map(arr => roundTwo(arr.freq));
+
     prompt(
-      'Predicted notes (assuming equal strength springs): ' +
+      'Predicted notes (assuming equal strength intervals and no tethers): ' +
         predictedArray.map(e => roundTwo(e)) +
         //'\nw: ' + roundTwo(w1) + ' w: ' + roundTwo(w2) +
         '\nCurrent notes (press Command+C or Ctrl+C to copy):',
-      noteArray.map(arr => roundTwo(arr.freq))
+      currentArray
     );
   };
 }
