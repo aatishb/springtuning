@@ -485,6 +485,7 @@ function particleSpringSystem() {
           physics.particles.includes(spring.b)
         ) {
           let noteIndex = noteLabels.indexOf(spring.a.noteLabel);
+          stroke(0, 0, 50, 50);
           line(
             circlePos[noteIndex].x,
             circlePos[noteIndex].y,
