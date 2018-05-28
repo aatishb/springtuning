@@ -220,6 +220,15 @@ function particleSpringSystem() {
   this.tuningArray = [];
   this.springTuning = '';
 
+  this.oscType = 'sawtooth';
+
+  this.setOsc = function() {
+    console.log(this.oscType);
+    this.particleArray
+      .filter(particle => !this.ETparticleArray.includes(particle))
+      .map(particle => particle.osc.setType(this.oscType));
+  };
+
   this.setTuning = function(choice) {
     this.springTuning = choice;
     this.tuningArray = tunings[choice].map(ratioToCents);
@@ -469,18 +478,21 @@ function particleSpringSystem() {
           circlePos[noteBIndex].x,
           circlePos[noteBIndex].y
         );
+      } else {
+        if (
+          sim.allowTethers &&
+          physics.particles.includes(spring.a) &&
+          physics.particles.includes(spring.b)
+        ) {
+          let noteIndex = noteLabels.indexOf(spring.a.noteLabel);
+          line(
+            circlePos[noteIndex].x,
+            circlePos[noteIndex].y,
+            equalTemperedCirclePos[noteIndex].x,
+            equalTemperedCirclePos[noteIndex].y
+          );
+        }
       }
-      /*
-      else {
-        let noteIndex = noteLabels.indexOf(spring.a.noteLabel);
-        line(
-          circlePos[noteIndex].x,
-          circlePos[noteIndex].y,
-          equalTemperedCirclePos[noteIndex].x,
-          equalTemperedCirclePos[noteIndex].y
-        );
-      }
-      */
     });
   };
 
@@ -683,6 +695,14 @@ function addHTML() {
 let springSliders;
 
 function addGUI() {
+  let oscController = gui.add(sim, 'oscType', {
+    sine: 'sine',
+    triangle: 'triangle',
+    sawtooth: 'sawtooth',
+    square: 'square'
+  });
+  oscController.onChange(val => sim.setOsc());
+
   let dropdown = gui.add(sim, 'springTuning', Object.keys(tunings));
   dropdown.onChange(val => {
     sim.setTuning(val);
