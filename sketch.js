@@ -362,8 +362,9 @@ function particleSpringSystem() {
     return dict;
   }, {});
 
-  this.weightToStiffness = x =>
-    0.0019697 * pow(-1 - 0.988197 / (x - 0.989914), 0.984288782454462);
+  this.maxStiffness = 0.002;
+
+  this.weightToStiffness = x => this.maxStiffness * x / (1 - x);
 
   // dictionary to keep track of spring weights (by interval)
   this.springWeight = intervalLabels
@@ -571,7 +572,7 @@ function particleSpringSystem() {
 
   this.adjustSpringsByInterval = function(whichInterval) {
     let weight = this.springWeight[whichInterval];
-    if (weight == 0.002) {
+    if (weight == 0) {
       this.removeSpringsByInterval(whichInterval);
     } else {
       let stiffness = this.weightToStiffness(weight);
@@ -586,7 +587,7 @@ function particleSpringSystem() {
   this.adjustTetherSprings = function() {
     if (this.allowTethers) {
       let weight = this.tetherWeight;
-      if (weight == 0.002) {
+      if (weight == 0) {
         this.tetherSpringArray.forEach(spring => physics.removeSpring(spring));
       } else {
         let stiffness = this.weightToStiffness(weight);
@@ -718,7 +719,7 @@ function addGUI() {
   let tetherSwitch = tether.add(sim, 'allowTethers');
   tetherSwitch.onChange(val => sim.toggleTetherSprings());
 
-  let tetherSlider = tether.add(sim, 'tetherWeight', 0.002, 0.988);
+  let tetherSlider = tether.add(sim, 'tetherWeight', 0, 1);
   tetherSlider.onChange(val => sim.adjustTetherSprings());
 
   let noteCheckboxes = gui.addFolder('lock notes');
@@ -754,8 +755,8 @@ function updateGUI() {
       let controller = springSliders.add(
         sim.springWeight,
         interval,
-        0.002,
-        0.988
+        0,
+        1
       );
       controller.onChange(val => sim.adjustSpringsByInterval(interval));
       springSliders.controllers.push(controller);
