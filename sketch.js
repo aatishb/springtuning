@@ -235,39 +235,39 @@ function particleSpringSystem() {
   };
 
   this.initializeParticles = function() {
-    this.particleArray = noteLabels.map(myNote => {
-      let myParticle = new VerletParticle2D(
-        noteToPos(myNote),
+    this.particleArray = noteLabels.map(note => {
+      let particle = new VerletParticle2D(
+        noteToPos(note),
         7.5 * height / 8
       );
 
-      myParticle.freq = noteToFreq(myNote);
+      particle.freq = noteToFreq(note);
       let newOsc = new p5.Oscillator();
       newOsc.setType('sawtooth');
-      newOsc.freq(roundTwo(myParticle.freq));
+      newOsc.freq(roundTwo(particle.freq));
       newOsc.amp(0);
       newOsc.start();
-      myParticle.osc = newOsc;
+      particle.osc = newOsc;
 
-      myParticle.noteLabel = myNote;
+      particle.noteLabel = note;
 
-      return myParticle;
+      return particle;
     });
 
-    this.ETparticleArray = noteLabels.map(myNote => {
-      let myParticle = new VerletParticle2D(
-        noteToPos(myNote),
+    this.ETparticleArray = noteLabels.map(note => {
+      let particle = new VerletParticle2D(
+        noteToPos(note),
         7.5 * height / 8
       );
 
-      myParticle.noteLabel = myNote;
+      particle.noteLabel = note;
 
-      return myParticle;
+      return particle;
     });
   };
 
-  this.drawNotes = function(myParticle) {
-    let noteIndex = noteLabels.indexOf(myParticle.noteLabel);
+  this.drawNotes = function(particle) {
+    let noteIndex = noteLabels.indexOf(particle.noteLabel);
     let myHue = map(noteIndex % 12, 0, 12, 0, 100);
 
     fill(myHue, 100, 100, 20);
@@ -278,7 +278,7 @@ function particleSpringSystem() {
     );
 
     fill(myHue, 100, 100);
-    ellipse(myParticle.x, myParticle.y, 20); // draw notes
+    ellipse(particle.x, particle.y, 20); // draw notes
     ellipse(circlePos[noteIndex].x, circlePos[noteIndex].y, 20);
   };
 
@@ -287,32 +287,32 @@ function particleSpringSystem() {
     this.particleArray
       .filter(particle => physics.particles.includes(particle))
       .filter(particle => !this.ETparticleArray.includes(particle))
-      .forEach(myParticle => {
-        this.drawNotes(myParticle);
-        this.updateFreq(myParticle);
+      .forEach(particle => {
+        this.drawNotes(particle);
+        this.updateFreq(particle);
       });
   };
 
-  this.addParticle = function(myParticle) {
-    if (!physics.particles.includes(myParticle)) {
-      physics.addParticle(myParticle);
+  this.addParticle = function(particle) {
+    if (!physics.particles.includes(particle)) {
+      physics.addParticle(particle);
     }
   };
 
-  this.removeParticle = function(myParticle) {
-    if (physics.particles.includes(myParticle)) {
-      physics.removeParticle(myParticle);
+  this.removeParticle = function(particle) {
+    if (physics.particles.includes(particle)) {
+      physics.removeParticle(particle);
     }
   };
 
-  this.mute = function(myParticle) {
+  this.mute = function(particle) {
     // TODO: check if osc exists
-    myParticle.osc.amp(0, 0.01);
+    particle.osc.amp(0, 0.01);
   };
 
-  this.play = function(myParticle) {
+  this.play = function(particle) {
     // TODO: check if osc exists
-    myParticle.osc.amp(0.5, 0.01);
+    particle.osc.amp(0.5, 0.01);
   };
 
   this.addNote = function(whichParticle) {
@@ -325,6 +325,7 @@ function particleSpringSystem() {
     }
     this.play(whichParticle);
     this.addSpringsByNote(whichParticle);
+    this.tetherSpringsByNote(this.addSpring, whichParticle);
     updateGUI();
   };
 
@@ -338,9 +339,11 @@ function particleSpringSystem() {
     }
     this.mute(whichParticle);
     this.removeSpringsByNote(whichParticle);
+    this.tetherSpringsByNote(this.removeSpring, whichParticle);
     updateGUI();
   };
 
+  /*
   this.lockNote = function(note) {
     let noteIndex = noteLabels.indexOf(note);
 
@@ -351,20 +354,24 @@ function particleSpringSystem() {
       sim.particleArray[noteIndex].unlock();
     }
   };
+  */
 
-  this.updateFreq = function(myParticle) {
-    myParticle.osc.freq(roundTwo(centsToFreq(posToCents(myParticle.x))), 0.01);
+  this.updateFreq = function(particle) {
+    particle.osc.freq(roundTwo(centsToFreq(posToCents(particle.x))), 0.01);
   };
 
+  /*
   // dict to keep track of locked notes
   this.lockedNotes = noteLabels.reduce((dict, item) => {
     dict[item] = false;
     return dict;
   }, {});
+  */
 
-  this.maxStiffness = 0.002;
-
-  this.weightToStiffness = x => this.maxStiffness * x / (1 - x);
+  this.meanStiffness = 0.002;
+  this.maxStiffness = 0.1;
+  this.weightToStiffness = w => this.meanStiffness * w / (1 - w);
+  this.maxWeight = 1 / (1 + this.meanStiffness / this.maxStiffness);
 
   // dictionary to keep track of spring weights (by interval)
   this.springWeight = intervalLabels
@@ -374,7 +381,10 @@ function particleSpringSystem() {
       return dict;
     }, {});
 
-  this.tetherWeight = 0.2;
+  this.tetherWeight = noteLabels.reduce((dict, item) => {
+    dict[item] = 0.2;
+    return dict;
+  }, {});
 
   this.initializeSprings = function() {
     this.springArray = [];
@@ -394,19 +404,19 @@ function particleSpringSystem() {
           centsToPos(this.tuningArray[(i - j) % 12] + centOffset + 1) -
           centsToPos(1);
 
-        let whichInterval = intervalLabels[(i - j) % 12];
-        if (whichInterval == 'unison') {
-          whichInterval = 'octave';
+        let interval = intervalLabels[(i - j) % 12];
+        if (interval == 'unison') {
+          interval = 'octave';
         }
 
         let newSpring = new VerletSpring2D(
           this.particleArray[i],
           this.particleArray[j],
           springLength,
-          this.weightToStiffness(this.springWeight[whichInterval])
+          this.weightToStiffness(this.springWeight[interval])
         );
 
-        newSpring.interval = whichInterval;
+        newSpring.interval = interval;
         newSpring.allowed = true;
         newSpring.noteA = noteLabels[i];
         newSpring.noteB = noteLabels[j];
@@ -418,7 +428,7 @@ function particleSpringSystem() {
         this.particleArray[i],
         this.ETparticleArray[i],
         0,
-        this.weightToStiffness(this.tetherWeight)
+        this.weightToStiffness(this.tetherWeight[noteLabels[i]])
       );
       this.tetherSpringArray.push(tetherSpring);
     }
@@ -523,89 +533,96 @@ function particleSpringSystem() {
     whichSpring.allowed = false;
   };
 
-  this.springsByNote = function(whichFunction, myParticle) {
-    const includesNote = (spring, myParticle) =>
-      spring.a == myParticle || spring.b == myParticle;
+  this.springsByNote = function(whichFunction, particle) {
+    const includesNote = (spring, particle) =>
+      spring.a == particle || spring.b == particle;
 
     this.springArray
-      .filter(spring => includesNote(spring, myParticle))
+      .filter(spring => includesNote(spring, particle))
       .filter(spring => spring.allowed == true)
       .forEach(spring => whichFunction(spring));
   };
 
-  this.addSpringsByNote = function(myParticle) {
-    this.springsByNote(this.addSpring, myParticle);
-    if (this.allowTethers) {
-      this.tetherSpringArray
-        .filter(spring => spring.a == myParticle || spring.b == myParticle)
-        .forEach(spring => this.addSpring(spring));
-    }
+  this.tetherSpringsByNote = function(whichFunction, particle) {
+    const includesNote = (spring, particle) =>
+      spring.a == particle || spring.b == particle;
+
+    this.tetherSpringArray
+      .filter(spring => includesNote(spring, particle))
+      //.filter(spring => spring.allowed == true)
+      .forEach(spring => whichFunction(spring));
   };
 
-  this.removeSpringsByNote = function(myParticle) {
-    this.springsByNote(this.removeSpring, myParticle);
-    if (this.allowTethers) {
-      this.tetherSpringArray
-        .filter(spring => spring.a == myParticle || spring.b == myParticle)
-        .forEach(spring => this.removeSpring(spring));
-    }
+  this.addSpringsByNote = function(particle) {
+    this.springsByNote(this.addSpring, particle);
   };
 
-  this.springsByInterval = function(whichFunction, whichInterval) {
+  this.removeSpringsByNote = function(particle) {
+    this.springsByNote(this.removeSpring, particle);
+  };
+
+  this.springsByInterval = function(whichFunction, interval) {
     const includesInterval = (spring, whichInterval) =>
       spring.interval === whichInterval;
 
     this.springArray
-      .filter(spring => includesInterval(spring, whichInterval))
+      .filter(spring => includesInterval(spring, interval))
       .forEach(spring => whichFunction(spring));
   };
 
-  this.addSpringsByInterval = function(whichInterval) {
-    this.springsByInterval(this.addSpring, whichInterval);
-    this.springsByInterval(this.allowSpring, whichInterval);
+  this.addSpringsByInterval = function(interval) {
+    this.springsByInterval(this.addSpring, interval);
+    this.springsByInterval(this.allowSpring, interval);
   };
 
-  this.removeSpringsByInterval = function(whichInterval) {
-    this.springsByInterval(this.removeSpring, whichInterval);
-    this.springsByInterval(this.disallowSpring, whichInterval);
+  this.removeSpringsByInterval = function(interval) {
+    this.springsByInterval(this.removeSpring, interval);
+    this.springsByInterval(this.disallowSpring, interval);
   };
 
-  this.adjustSpringsByInterval = function(whichInterval) {
-    let weight = this.springWeight[whichInterval];
+  this.adjustSpringsByInterval = function(interval) {
+    let weight = this.springWeight[interval];
+    if (weight > this.maxWeight) {
+      weight = this.maxWeight;
+    }
+
     if (weight == 0) {
-      this.removeSpringsByInterval(whichInterval);
+      this.removeSpringsByInterval(interval);
     } else {
       let stiffness = this.weightToStiffness(weight);
-      this.addSpringsByInterval(whichInterval);
-      this.springsByInterval(
-        spring => spring.setStrength(stiffness),
-        whichInterval
-      );
+      this.addSpringsByInterval(interval);
+      this.springsByInterval(spring => spring.setStrength(stiffness), interval);
     }
   };
 
-  this.adjustTetherSprings = function() {
-    if (this.allowTethers) {
-      let weight = this.tetherWeight;
+  this.adjustTetherSpringsByNote = function(note) {
+    let noteIndex = noteLabels.indexOf(note);
+    let particle = this.particleArray[noteIndex];
+
+    let weight = this.tetherWeight[note];
+    if (weight > this.maxWeight) {
+      weight = this.maxWeight;
+    }
+
+    if (weight == this.maxWeight) {
+      this.tetherSpringsByNote(this.removeSpring, particle);
+      particle.x = noteToPos(note);
+      particle.lock();
+    } else {
+      if (particle.isLocked) {
+        particle.unlock();
+      }
+
       if (weight == 0) {
-        this.tetherSpringArray.forEach(spring => physics.removeSpring(spring));
+        this.tetherSpringsByNote(this.removeSpring, particle);
       } else {
         let stiffness = this.weightToStiffness(weight);
-        this.tetherSpringArray.forEach(spring => {
-          physics.addSpring(spring);
-          spring.setStrength(stiffness);
-        });
+        this.tetherSpringsByNote(this.addSpring, particle);
+        this.tetherSpringsByNote(
+          spring => spring.setStrength(stiffness),
+          particle
+        );
       }
-    }
-  };
-
-  this.toggleTetherSprings = function() {
-    if (this.allowTethers) {
-      this.ETparticleArray.forEach(particle => physics.addParticle(particle));
-      this.tetherSpringArray.forEach(spring => physics.addSpring(spring));
-    } else {
-      this.ETparticleArray.forEach(particle => physics.removeParticle(particle));
-      this.tetherSpringArray.forEach(spring => physics.removeSpring(spring));
     }
   };
 
@@ -694,7 +711,7 @@ function addHTML() {
   });
 }
 
-let springSliders;
+let springSliders = {};
 
 function addGUI() {
   let oscController = gui.add(sim, 'oscType', {
@@ -711,36 +728,32 @@ function addGUI() {
     sim.retuneSprings();
   });
 
-  springSliders = gui.addFolder('interval springs');
-  springSliders.controllers = [];
+  springSliders.intervalFolder = gui.addFolder('interval springs');
+  springSliders.tetherFolder = gui.addFolder('tether springs');
+  springSliders.intervalFolder.controllers = [];
+  springSliders.tetherFolder.controllers = [];
 
-  let tether = gui.addFolder('tether springs');
-
-  let tetherSwitch = tether.add(sim, 'allowTethers');
-  tetherSwitch.onChange(val => sim.toggleTetherSprings());
-
-  let tetherSlider = tether.add(sim, 'tetherWeight', 0, 1);
-  tetherSlider.onChange(val => sim.adjustTetherSprings());
-
-  let noteCheckboxes = gui.addFolder('lock notes');
-
+  /*
   octaves.forEach(octave => {
-    let subfolder = noteCheckboxes.addFolder('octave ' + octave);
+    let subfolder = tether.addFolder('octave ' + octave);
     notes.forEach(note => {
-      let controller = subfolder.add(sim.lockedNotes, note + octave);
-      controller.onChange(val => sim.lockNote(note + octave));
+      let controller = subfolder.add(sim.tetherWeight, note + octave, 0, 1);
+      controller.onChange(val => sim.adjustTetherSprings(note + octave));
+      tether.controllers.push(controller);
     });
   });
+  */
 
   gui.add(sim, 'logNotes');
 }
 
 function updateGUI() {
-  springSliders.controllers.forEach(e => springSliders.remove(e));
+  springSliders.intervalFolder.controllers.forEach(e => springSliders.intervalFolder.remove(e));
+  springSliders.tetherFolder.controllers.forEach(e => springSliders.tetherFolder.remove(e));
 
-  const endpointsOnScreen = mySpring =>
-    physics.particles.includes(mySpring.a) &&
-    physics.particles.includes(mySpring.b);
+  const endpointsOnScreen = spring =>
+    physics.particles.includes(spring.a) &&
+    physics.particles.includes(spring.b);
 
   // make a list of intervals currently possible
   let currentIntervals = sim.springArray
@@ -748,18 +761,37 @@ function updateGUI() {
     .map(spring => spring.interval);
 
   // only show controllers for these intervals
-  springSliders.controllers = [];
+  springSliders.intervalFolder.controllers = [];
   Object.keys(sim.springWeight)
     .filter(interval => currentIntervals.includes(interval))
     .forEach(interval => {
-      let controller = springSliders.add(
+      let controller = springSliders.intervalFolder.add(
         sim.springWeight,
         interval,
         0,
         1
       );
       controller.onChange(val => sim.adjustSpringsByInterval(interval));
-      springSliders.controllers.push(controller);
+      springSliders.intervalFolder.controllers.push(controller);
+    });
+
+  let currentNotes = sim.particleArray
+    .filter(particle => physics.particles.includes(particle))
+    .filter(particle => !sim.ETparticleArray.includes(particle))
+    .map(particle => particle.noteLabel);
+
+  springSliders.tetherFolder.controllers = [];
+  Object.keys(sim.tetherWeight)
+    .filter(note => currentNotes.includes(note))
+    .forEach(note => {
+      let controller = springSliders.tetherFolder.add(
+        sim.tetherWeight,
+        note,
+        0,
+        1
+      );
+      controller.onChange(val => sim.adjustTetherSpringsByNote(note));
+      springSliders.tetherFolder.controllers.push(controller);
     });
 }
 
@@ -826,8 +858,8 @@ WebMidi.enable(function(err) {
     let note = e.note.name + e.note.octave;
     let noteIndex = noteLabels.indexOf(note);
     if(noteIndex > -1){
-      let myParticle = sim.particleArray[noteIndex];
-      sim.addNote(myParticle);
+      let particle = sim.particleArray[noteIndex];
+      sim.addNote(particle);
     }
     //console.log("Received 'noteon' message (" + e.note.name + e.note.octave + ").");
   });
@@ -836,8 +868,8 @@ WebMidi.enable(function(err) {
     let note = e.note.name + e.note.octave;
     let noteIndex = noteLabels.indexOf(note);
     if(noteIndex > -1){
-      let myParticle = sim.particleArray[noteIndex];
-      sim.removeNote(myParticle);
+      let particle = sim.particleArray[noteIndex];
+      sim.removeNote(particle);
     }
     //console.log("Received 'noteoff' message (" + e.note.name + e.note.octave + ").");
   });
