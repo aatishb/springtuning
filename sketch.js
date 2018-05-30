@@ -223,7 +223,6 @@ function particleSpringSystem() {
   this.oscType = 'sawtooth';
 
   this.setOsc = function() {
-    console.log(this.oscType);
     this.particleArray
       .filter(particle => !this.ETparticleArray.includes(particle))
       .map(particle => particle.osc.setType(this.oscType));
@@ -236,10 +235,7 @@ function particleSpringSystem() {
 
   this.initializeParticles = function() {
     this.particleArray = noteLabels.map(note => {
-      let particle = new VerletParticle2D(
-        noteToPos(note),
-        7.5 * height / 8
-      );
+      let particle = new VerletParticle2D(noteToPos(note), 7.5 * height / 8);
 
       particle.freq = noteToFreq(note);
       let newOsc = new p5.Oscillator();
@@ -255,10 +251,7 @@ function particleSpringSystem() {
     });
 
     this.ETparticleArray = noteLabels.map(note => {
-      let particle = new VerletParticle2D(
-        noteToPos(note),
-        7.5 * height / 8
-      );
+      let particle = new VerletParticle2D(noteToPos(note), 7.5 * height / 8);
 
       particle.noteLabel = note;
 
@@ -748,8 +741,12 @@ function addGUI() {
 }
 
 function updateGUI() {
-  springSliders.intervalFolder.controllers.forEach(e => springSliders.intervalFolder.remove(e));
-  springSliders.tetherFolder.controllers.forEach(e => springSliders.tetherFolder.remove(e));
+  springSliders.intervalFolder.controllers.forEach(e =>
+    springSliders.intervalFolder.remove(e)
+  );
+  springSliders.tetherFolder.controllers.forEach(e =>
+    springSliders.tetherFolder.remove(e)
+  );
 
   const endpointsOnScreen = spring =>
     physics.particles.includes(spring.a) &&
