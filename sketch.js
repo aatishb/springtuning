@@ -1,3 +1,5 @@
+'use strict';
+
 const intervalLabels = [
   'unison',
   'minor second',
@@ -32,7 +34,6 @@ let tunings = {
 // physics
 let physics;
 let sim;
-let springStates = { Remove: 0, Flexible: 0.001, Rigid: 1 };
 
 // display
 let offset = 50; // x position of first note
@@ -116,16 +117,16 @@ function draw() {
 }
 
 // helper functions
-function noteToFreq(whichNote) {
-  let whichNoteInAnOctave = whichNote.slice(0, -1);
-  let whichOctave = int(whichNote.slice(-1));
-  let noteIndex = notes.indexOf(whichNoteInAnOctave);
-  let myFreq = cFreq * pow(2, noteIndex / 12) * pow(2, whichOctave - 4);
+function noteToFreq(note) {
+  let noteInAnOctave = note.slice(0, -1);
+  let octave = int(note.slice(-1));
+  let noteIndex = notes.indexOf(noteInAnOctave);
+  let myFreq = cFreq * pow(2, noteIndex / 12) * pow(2, octave - 4);
   return myFreq;
 }
 
-function noteToCents(whichNote) {
-  return freqToCents(noteToFreq(whichNote));
+function noteToCents(note) {
+  return freqToCents(noteToFreq(note));
 }
 
 function freqToCents(noteFreq) {
@@ -140,8 +141,8 @@ function centsToPos(cents_from_c4) {
   return map(cents_from_c4, -1200, 2400, offset, width - offset);
 }
 
-function noteToPos(whichNote) {
-  return centsToPos(noteToCents(whichNote));
+function noteToPos(note) {
+  return centsToPos(noteToCents(note));
 }
 
 function posToCents(position) {
@@ -222,10 +223,11 @@ function particleSpringSystem() {
 
   this.oscType = 'sawtooth';
 
-  this.setOsc = function() {
+  this.setOsc = function(choice) {
+    this.oscType = choice;
     this.particleArray
       .filter(particle => !this.ETparticleArray.includes(particle))
-      .map(particle => particle.osc.setType(this.oscType));
+      .map(particle => particle.osc.setType(choice));
   };
 
   this.setTuning = function(choice) {
@@ -308,31 +310,31 @@ function particleSpringSystem() {
     particle.osc.amp(0.5, 0.01);
   };
 
-  this.addNote = function(whichParticle) {
-    this.addParticle(whichParticle);
+  this.addNote = function(particle) {
+    this.addParticle(particle);
     if (this.allowTethers) {
-      let index = this.particleArray.indexOf(whichParticle);
+      let index = this.particleArray.indexOf(particle);
       let tetherNote = this.ETparticleArray[index];
       this.addParticle(tetherNote);
       tetherNote.lock();
     }
-    this.play(whichParticle);
-    this.addSpringsByNote(whichParticle);
-    this.tetherSpringsByNote(this.addSpring, whichParticle);
+    this.play(particle);
+    this.addSpringsByNote(particle);
+    this.tetherSpringsByNote(this.addSpring, particle);
     updateGUI();
   };
 
-  this.removeNote = function(whichParticle) {
-    this.removeParticle(whichParticle);
+  this.removeNote = function(particle) {
+    this.removeParticle(particle);
     if (this.allowTethers) {
-      let index = this.particleArray.indexOf(whichParticle);
+      let index = this.particleArray.indexOf(particle);
       let tetherNote = this.ETparticleArray[index];
       this.removeParticle(tetherNote);
       tetherNote.lock();
     }
-    this.mute(whichParticle);
-    this.removeSpringsByNote(whichParticle);
-    this.tetherSpringsByNote(this.removeSpring, whichParticle);
+    this.mute(particle);
+    this.removeSpringsByNote(particle);
+    this.tetherSpringsByNote(this.removeSpring, particle);
     updateGUI();
   };
 
@@ -363,8 +365,9 @@ function particleSpringSystem() {
 
   this.meanStiffness = 0.002;
   this.maxStiffness = 0.1;
-  this.weightToStiffness = w => this.meanStiffness * w / (1 - w);
-  this.maxWeight = 1 / (1 + this.meanStiffness / this.maxStiffness);
+
+  this.weightToStiffness = w =>
+    constrain(this.meanStiffness * w / (1 - w), 0, this.maxStiffness);
 
   // dictionary to keep track of spring weights (by interval)
   this.springWeight = intervalLabels
@@ -458,6 +461,7 @@ function particleSpringSystem() {
 
   this.drawSprings = function() {
     // draw springs
+
     circlePos = circlePositions(
       sim.particleArray.map(particle => particle.x),
       posToAngle
@@ -501,29 +505,31 @@ function particleSpringSystem() {
     });
   };
 
-  this.addSpring = function(whichSpring) {
-    if (!physics.springs.includes(whichSpring)) {
+  this.addSpring = function(spring) {
+    if (!physics.springs.includes(spring)) {
       if (
-        physics.particles.includes(whichSpring.a) &&
-        physics.particles.includes(whichSpring.b)
+        physics.particles.includes(spring.a) &&
+        physics.particles.includes(spring.b)
       ) {
-        physics.addSpring(whichSpring);
+        if (spring.getStrength() > 0) {
+          physics.addSpring(spring);
+        }
       }
     }
   };
 
-  this.removeSpring = function(whichSpring) {
-    if (physics.springs.includes(whichSpring)) {
-      physics.removeSpring(whichSpring);
+  this.removeSpring = function(spring) {
+    if (physics.springs.includes(spring)) {
+      physics.removeSpring(spring);
     }
   };
 
-  this.allowSpring = function(whichSpring) {
-    whichSpring.allowed = true;
+  this.allowSpring = function(spring) {
+    spring.allowed = true;
   };
 
-  this.disallowSpring = function(whichSpring) {
-    whichSpring.allowed = false;
+  this.disallowSpring = function(spring) {
+    spring.allowed = false;
   };
 
   this.springsByNote = function(whichFunction, particle) {
@@ -542,7 +548,6 @@ function particleSpringSystem() {
 
     this.tetherSpringArray
       .filter(spring => includesNote(spring, particle))
-      //.filter(spring => spring.allowed == true)
       .forEach(spring => whichFunction(spring));
   };
 
@@ -573,49 +578,36 @@ function particleSpringSystem() {
     this.springsByInterval(this.disallowSpring, interval);
   };
 
-  this.adjustSpringsByInterval = function(interval) {
-    let weight = this.springWeight[interval];
-    if (weight > this.maxWeight) {
-      weight = this.maxWeight;
-    }
+  this.adjustSpringsByInterval = function(interval, weight) {
+    let strength = this.weightToStiffness(weight);
+    this.springsByInterval(spring => spring.setStrength(strength), interval);
 
     if (weight == 0) {
       this.removeSpringsByInterval(interval);
     } else {
-      let stiffness = this.weightToStiffness(weight);
       this.addSpringsByInterval(interval);
-      this.springsByInterval(spring => spring.setStrength(stiffness), interval);
     }
   };
 
-  this.adjustTetherSpringsByNote = function(note) {
+  this.adjustTetherSpringsByNote = function(note, weight) {
     let noteIndex = noteLabels.indexOf(note);
     let particle = this.particleArray[noteIndex];
 
-    let weight = this.tetherWeight[note];
-    if (weight > this.maxWeight) {
-      weight = this.maxWeight;
+    let strength = this.weightToStiffness(weight);
+    this.tetherSpringsByNote(spring => spring.setStrength(strength), particle);
+
+    if (particle.isLocked) {
+      particle.unlock();
     }
 
-    if (weight == this.maxWeight) {
+    if (weight == 1) {
       this.tetherSpringsByNote(this.removeSpring, particle);
       particle.x = noteToPos(note);
       particle.lock();
+    } else if (weight == 0) {
+      this.tetherSpringsByNote(this.removeSpring, particle);
     } else {
-      if (particle.isLocked) {
-        particle.unlock();
-      }
-
-      if (weight == 0) {
-        this.tetherSpringsByNote(this.removeSpring, particle);
-      } else {
-        let stiffness = this.weightToStiffness(weight);
-        this.tetherSpringsByNote(this.addSpring, particle);
-        this.tetherSpringsByNote(
-          spring => spring.setStrength(stiffness),
-          particle
-        );
-      }
+      this.tetherSpringsByNote(this.addSpring, particle);
     }
   };
 
@@ -713,7 +705,7 @@ function addGUI() {
     sawtooth: 'sawtooth',
     square: 'square'
   });
-  oscController.onChange(val => sim.setOsc());
+  oscController.onChange(val => sim.setOsc(val));
 
   let dropdown = gui.add(sim, 'springTuning', Object.keys(tunings));
   dropdown.onChange(val => {
@@ -766,9 +758,10 @@ function updateGUI() {
         sim.springWeight,
         interval,
         0,
-        1
+        1,
+        0.01
       );
-      controller.onChange(val => sim.adjustSpringsByInterval(interval));
+      controller.onChange(val => sim.adjustSpringsByInterval(interval, val));
       springSliders.intervalFolder.controllers.push(controller);
     });
 
@@ -785,9 +778,10 @@ function updateGUI() {
         sim.tetherWeight,
         note,
         0,
-        1
+        1,
+        0.01
       );
-      controller.onChange(val => sim.adjustTetherSpringsByNote(note));
+      controller.onChange(val => sim.adjustTetherSpringsByNote(note, val));
       springSliders.tetherFolder.controllers.push(controller);
     });
 }
